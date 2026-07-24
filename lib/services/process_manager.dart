@@ -90,6 +90,10 @@ class ProcessManager {
   /// up the output pipeline, writes a PID file, and transitions state
   /// through `starting` → `running`.
   Future<void> start(String name) async {
+    // Ensure the output controller exists before any system message is pushed.
+    _outputControllers.putIfAbsent(
+        name, () => StreamController<String>.broadcast(sync: true));
+
     final procConfig = _lookupConfig(name);
     if (procConfig == null) return;
 
@@ -152,8 +156,6 @@ class ProcessManager {
       final refreshMs = config.outputRefreshMs;
       final historyLimit = config.outputHistoryLimit;
 
-      _outputControllers.putIfAbsent(
-          name, () => StreamController<String>.broadcast(sync: true));
       _outputBuffers[name] = [];
 
       final merged = _mergeByteStreams(handle.stdout, handle.stderr);
@@ -220,11 +222,6 @@ class ProcessManager {
     _cleanup(name);
     _setState(name, ProcState.stopped);
     _pushSystemMessage(name, 'Process stopped');
-  }
-
-  /// Called when the configuration changes so the manager can react.
-  void reloadConfig() {
-    // Future tickets (05) will handle auto-restart on config change.
   }
 
   /// Releases all resources: timers, subscriptions, controllers.
@@ -308,6 +305,10 @@ class ProcessManager {
   }
 
   void _cleanup(String name) {
+    // Already cleaned up (e.g. stop() triggered cleanup before the
+    // exitCode future fired).
+    if (!_handles.containsKey(name)) return;
+
     _flushTimers[name]?.cancel();
     _flushTimers.remove(name);
     _outputSubscriptions[name]?.cancel();
