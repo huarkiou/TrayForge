@@ -185,7 +185,7 @@ void main() {
     test('creates with defaults', () {
       final config = AppConfig();
       expect(config.outputHistoryLimit, 1000);
-      expect(config.outputRefreshMs, 100);
+      expect(config.outputRefreshMs, 500);
       expect(config.processes, isEmpty);
     });
 
@@ -206,7 +206,7 @@ void main() {
     test('defaultConfig provides NapCat and AstrBot', () {
       final config = AppConfig.defaultConfig();
       expect(config.outputHistoryLimit, 1000);
-      expect(config.outputRefreshMs, 100);
+      expect(config.outputRefreshMs, 500);
       expect(config.processes.length, 2);
 
       final napcat = config.processes[0];
@@ -246,7 +246,7 @@ void main() {
         final json = <String, dynamic>{};
         final config = AppConfig.fromJson(json);
         expect(config.outputHistoryLimit, 1000);
-        expect(config.outputRefreshMs, 100);
+        expect(config.outputRefreshMs, 500);
         expect(config.processes, isEmpty);
       });
 

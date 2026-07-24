@@ -109,7 +109,7 @@ class AppConfig {
 
   const AppConfig({
     this.outputHistoryLimit = 1000,
-    this.outputRefreshMs = 100,
+    this.outputRefreshMs = 500,
     this.processes = const [],
   });
 
@@ -117,7 +117,7 @@ class AppConfig {
   factory AppConfig.defaultConfig() {
     return AppConfig(
       outputHistoryLimit: 1000,
-      outputRefreshMs: 100,
+      outputRefreshMs: 500,
       processes: [
         const ProcessConfig(
           name: 'NapCat',
@@ -151,7 +151,7 @@ class AppConfig {
     return AppConfig(
       outputHistoryLimit:
           json['output_history_limit'] as int? ?? 1000,
-      outputRefreshMs: json['output_refresh_ms'] as int? ?? 100,
+      outputRefreshMs: json['output_refresh_ms'] as int? ?? 500,
       processes: (json['processes'] as List<dynamic>?)
               ?.map((e) =>
                   ProcessConfig.fromJson(e as Map<String, dynamic>))
