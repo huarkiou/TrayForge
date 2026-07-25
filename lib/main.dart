@@ -18,7 +18,7 @@ import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 import 'package:trayforge/viewmodels/tray_viewmodel.dart';
 
 // ---------------------------------------------------------------------------
-// Manual DI — Program.cs style
+// Manual DI -- Program.cs style
 // ---------------------------------------------------------------------------
 
 late final Logger _logger;
@@ -39,10 +39,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
 
-  // Configure window before showing anything.
-  await windowManager.waitUntilReadyToShow(
-    const WindowOptions(title: 'trayforge', size: Size(800, 600), center: true),
-  );
+  // Configure window properties without showing it -- tray-only startup.
+  await windowManager.setTitle('trayforge');
+  await windowManager.setSize(const Size(800, 600));
+  await windowManager.center();
 
   // ---- Services ----
 
@@ -89,7 +89,7 @@ Future<void> main() async {
     onExit: _exitApp,
   );
 
-  // Tray state changes → update icon and menu.
+  // Tray state changes -> update icon and menu.
   _trayViewModel.addListener(_onTrayStateChanged);
 
   // ---- Window setup ----
@@ -113,11 +113,7 @@ Future<void> main() async {
   await trayManager.setContextMenu(_trayViewModel.buildMenu());
   trayManager.addListener(_AppTrayListener());
 
-  // ---- Hide window at startup (tray only) ----
-
-  await windowManager.hide();
-
-  // ---- Wake signal polling (second instance → show dashboard) ----
+  // ---- Wake signal polling (second instance -> show dashboard) ----
 
   _wakeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
     if (_singleInstance.checkForWakeSignal()) {
@@ -137,6 +133,10 @@ Future<void> main() async {
 Future<void> _showDashboard() async {
   await windowManager.show();
   await windowManager.focus();
+}
+
+void _hideDashboard() {
+  windowManager.hide();
 }
 
 Future<void> _exitApp() async {
@@ -166,7 +166,7 @@ Future<void> _exitApp() async {
   await trayManager.destroy();
   await windowManager.destroy();
 
-  // Release the single-instance lock last — only after all cleanup is
+  // Release the single-instance lock last -- only after all cleanup is
   // complete.  This prevents a second instance from starting while this
   // process is still tearing down tray / window resources.
   _singleInstance.release();
@@ -194,8 +194,7 @@ void _onTrayStateChanged() {
 class _AppWindowListener extends WindowListener {
   @override
   void onWindowClose() {
-    // Hide to tray instead of quitting.
-    windowManager.hide();
+    _hideDashboard();
   }
 }
 
@@ -224,7 +223,7 @@ class _AppTrayListener extends TrayListener {
   void onTrayIconRightMouseDown() {
     // Show the native context menu on right-click.
     // The tray_manager plugin fires this event but does NOT
-    // auto-pop the menu — the app must call popUpContextMenu.
+    // auto-pop the menu -- the app must call popUpContextMenu.
     trayManager.popUpContextMenu();
   }
 }
