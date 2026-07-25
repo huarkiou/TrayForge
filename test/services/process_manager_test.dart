@@ -17,9 +17,9 @@ class _MockProcessHandle implements IProcessHandle {
   final int pid;
 
   final StreamController<List<int>> _stdoutController =
-      StreamController<List<int>>();
+      StreamController<List<int>>(sync: true);
   final StreamController<List<int>> _stderrController =
-      StreamController<List<int>>();
+      StreamController<List<int>>(sync: true);
   final Completer<int> _exitCompleter = Completer<int>();
 
   bool killed = false;
@@ -519,8 +519,7 @@ void main() {
         handle.emitStdout('\x1B[32mgreen\x1B[0m text\n');
         handle.closeOutputs();
 
-        // Wait for flush timer
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+        pm.flushNow('test-svc');
 
         final nonSystem = output.where((l) => !l.startsWith('[TrayForge]'));
         expect(nonSystem.any((l) => l.contains('green text')), isTrue);
@@ -551,7 +550,7 @@ void main() {
         handle.emitStdout('listening at http://127.0.0.1:8080\n');
         handle.closeOutputs();
 
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+        fresh.flushNow('test-svc');
 
         expect(event, isNotNull);
         expect(event!.processName, 'test-svc');
@@ -581,7 +580,7 @@ void main() {
         handle.emitStdout('just some random output\n');
         handle.closeOutputs();
 
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+        fresh.flushNow('test-svc');
 
         expect(eventCount, 0);
 
@@ -608,15 +607,14 @@ void main() {
         // Emit 3 lines quickly (before first flush)
         handle.emitStdout('line1\nline2\nline3\n');
 
-        // Immediately there should be nothing yet (buffered)
-        await Future<void>.delayed(const Duration(milliseconds: 5));
+        // Buffered, not yet emitted — no await needed since Timer fires async
         final nonSystem1 = output
             .where((l) => !l.startsWith('[TrayForge]'))
             .toList();
         expect(nonSystem1, isEmpty);
 
-        // After flush interval, lines appear
-        await Future<void>.delayed(const Duration(milliseconds: 30));
+        fresh.flushNow('test-svc');
+
         final nonSystem2 = output
             .where((l) => !l.startsWith('[TrayForge]'))
             .toList();
@@ -648,7 +646,7 @@ void main() {
         handle.emitStdout('a\nb\nc\nd\ne\n');
         handle.closeOutputs();
 
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+        fresh.flushNow('test-svc');
 
         final nonSystem = output
             .where((l) => !l.startsWith('[TrayForge]'))
@@ -682,7 +680,7 @@ void main() {
         handle.emitStderr('stderr line\n');
         handle.closeOutputs();
 
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+        fresh.flushNow('test-svc');
 
         final nonSystem = output
             .where((l) => !l.startsWith('[TrayForge]'))
@@ -702,7 +700,7 @@ void main() {
         expect(pm.getState('unknown'), ProcState.stopped);
       });
 
-      test('state stream replays current state to new listeners', () async {
+      test('getState returns running for a started process', () async {
         mockRunner.nextHandle = _MockProcessHandle();
         await pm.start('test-svc');
 

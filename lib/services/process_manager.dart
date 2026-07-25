@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:trayforge_flutter/foundation/logger.dart';
 import 'package:trayforge_flutter/foundation/models.dart';
@@ -241,6 +242,15 @@ class ProcessManager {
     _webuiController.close();
   }
 
+  /// Immediately flushes buffered output for [name].
+  ///
+  /// Exposed so tests can inspect output without waiting for the periodic
+  /// flush timer.
+  @visibleForTesting
+  void flushNow(String name) {
+    _flushBuffer(name);
+  }
+
   // ---------------------------------------------------------------------------
   // Private: helpers
   // ---------------------------------------------------------------------------
@@ -353,7 +363,7 @@ class ProcessManager {
     Stream<List<int>> a,
     Stream<List<int>> b,
   ) {
-    final controller = StreamController<List<int>>();
+    final controller = StreamController<List<int>>(sync: true);
     var doneCount = 0;
 
     void onDone() {
