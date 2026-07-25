@@ -36,6 +36,12 @@ abstract class IProcessRunner {
 
   /// Returns `true` if a process with the given [pid] is running.
   Future<bool> isPidAlive(int pid);
+
+  /// Returns the start time of the process with [pid].
+  ///
+  /// Returns `null` if the process is not running or the start time
+  /// cannot be determined.
+  Future<DateTime?> getProcessStartTime(int pid);
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +114,47 @@ class RealProcessRunner implements IProcessRunner {
     } catch (_) {
       return false;
     }
+  }
+
+  @override
+  Future<DateTime?> getProcessStartTime(int pid) async {
+    try {
+      if (Platform.isWindows) {
+        // wmic returns: CreationDate=20250101083015.123456+480
+        final result = await Process.run(
+          'wmic',
+          ['process', 'where', 'ProcessId=$pid', 'get', 'CreationDate',
+           '/format:csv'],
+        );
+        final output = result.stdout.toString();
+        final match = RegExp(r'(\d{14})\.\d+').firstMatch(output);
+        if (match != null) {
+          final ts = match.group(1)!;
+          return DateTime(
+            int.parse(ts.substring(0, 4)),
+            int.parse(ts.substring(4, 6)),
+            int.parse(ts.substring(6, 8)),
+            int.parse(ts.substring(8, 10)),
+            int.parse(ts.substring(10, 12)),
+            int.parse(ts.substring(12, 14)),
+          );
+        }
+      } else {
+        // /proc/<pid>/stat: field 22 is starttime in clock ticks since boot.
+        // Simpler: `ps -o lstart= -p <pid>` returns "Mon Jan  1 08:30:15 2025".
+        final result = await Process.run(
+          'ps',
+          ['-o', 'lstart=', '-p', pid.toString()],
+        );
+        final output = result.stdout.toString().trim();
+        if (output.isNotEmpty) {
+          return DateTime.tryParse(output);
+        }
+      }
+    } catch (_) {
+      // Fall through to null.
+    }
+    return null;
   }
 
   @override

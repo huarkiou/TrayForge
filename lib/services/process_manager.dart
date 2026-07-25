@@ -36,9 +36,7 @@ class ProcessManager {
   final Map<String, bool> _manualStopFlags = {};
 
   // Crash restart state
-  final Map<String, DateTime> _lastRestartTime = {};
-  final Map<String, int> _restartCount = {};
-  final Map<String, Timer> _cooldownTimers = {};
+  final Map<String, _RestartState> _restart = {};
 
   // Output pipeline
   final Map<String, StreamController<String>> _outputControllers = {};
@@ -227,10 +225,11 @@ class ProcessManager {
 
     _setState(name, ProcState.stopping);
     _manualStopFlags[name] = true;
-    _restartCount.remove(name);
-    _lastRestartTime.remove(name);
-    _cooldownTimers[name]?.cancel();
-    _cooldownTimers.remove(name);
+    final rs = _restart[name];
+    if (rs != null) {
+      rs.cooldownTimer?.cancel();
+      _restart.remove(name);
+    }
     _pushSystemMessage(name, 'Process stopping...');
 
     try {
@@ -261,10 +260,30 @@ class ProcessManager {
   /// Configurable for testing; defaults to 60 seconds.
   final Duration cooldownDuration;
 
+  /// Completes when all fire-and-forget async work from construction
+  /// (PID cleanup, autostart) has settled.
+  ///
+  /// Exposed so tests can wait deterministically instead of relying on
+  /// [Future.delayed] guesses.
+  @visibleForTesting
+  Future<void> settle() async {
+    await _cleanupComplete.future;
+    await _autostartComplete.future;
+    // Wait for any pending fire-and-forget start() calls to finish.
+    while (_pendingCount > 0) {
+      await _allPendingComplete.future;
+    }
+  }
+
+  final Completer<void> _cleanupComplete = Completer<void>();
+  final Completer<void> _autostartComplete = Completer<void>();
+  int _pendingCount = 0;
+  Completer<void> _allPendingComplete = Completer<void>();
+
   /// Releases all resources: timers, subscriptions, controllers.
   void dispose() {
-    for (final t in _cooldownTimers.values) {
-      t.cancel();
+    for (final rs in _restart.values) {
+      rs.cooldownTimer?.cancel();
     }
     for (final t in _flushTimers.values) {
       t.cancel();
@@ -334,18 +353,18 @@ class ProcessManager {
       return;
     }
 
-    final count = (_restartCount[name] ?? 0) + 1;
-    _restartCount[name] = count;
+    final rs = _restart.putIfAbsent(name, () => _RestartState());
+    rs.count++;
 
-    if (count > maxRestarts) {
+    if (rs.count > maxRestarts) {
       _setState(name, ProcState.crashed);
       _pushSystemMessage(
           name, '$name: max restarts ($maxRestarts) reached, giving up');
-      _restartCount.remove(name);
+      _restart.remove(name);
       return;
     }
 
-    final lastTime = _lastRestartTime[name];
+    final lastTime = rs.lastRestartTime;
     final now = DateTime.now();
 
     if (lastTime != null) {
@@ -356,33 +375,32 @@ class ProcessManager {
         _pushSystemMessage(
             name,
             'Restart cooldown: next attempt in ${remaining.inSeconds}s '
-            '(attempt $count of $maxRestarts)');
-        _scheduleCooldownRestart(name, procConfig, remaining);
+            '(attempt ${rs.count} of $maxRestarts)');
+        _scheduleCooldownRestart(name, procConfig, remaining, rs);
         return;
       }
     }
 
-    _doRestart(name, procConfig, count, maxRestarts);
+    _doRestart(name, procConfig, maxRestarts, rs);
   }
 
   void _doRestart(
-      String name, ProcessConfig procConfig, int count, int maxRestarts) {
-    _lastRestartTime[name] = DateTime.now();
+      String name, ProcessConfig procConfig, int maxRestarts, _RestartState rs) {
+    rs.lastRestartTime = DateTime.now();
     _pushSystemMessage(
-        name, 'Auto-restarting (attempt $count of $maxRestarts)...');
+        name, 'Auto-restarting (attempt ${rs.count} of $maxRestarts)...');
     // Fire-and-forget: schedule a microtask restart so the current
     // exit handler can finish cleanup before the next start.
     Future.microtask(() => start(name));
   }
 
   void _scheduleCooldownRestart(
-      String name, ProcessConfig procConfig, Duration delay) {
-    _cooldownTimers[name]?.cancel();
-    _cooldownTimers[name] = Timer(delay, () {
-      _cooldownTimers.remove(name);
+      String name, ProcessConfig procConfig, Duration delay, _RestartState rs) {
+    rs.cooldownTimer?.cancel();
+    rs.cooldownTimer = Timer(delay, () {
+      _restart.remove(name);
       _pushSystemMessage(name, 'Cooldown elapsed, retrying...');
-      _doRestart(
-          name, procConfig, _restartCount[name] ?? 0, procConfig.maxRestarts ?? 0);
+      _doRestart(name, procConfig, procConfig.maxRestarts ?? 0, rs);
     });
   }
 
@@ -393,15 +411,36 @@ class ProcessManager {
   /// Starts all processes with `autostart: true` in the current config.
   void _autostartAll() {
     final config = _configStore.load();
-    if (config == null) return;
+    if (config == null) {
+      if (!_autostartComplete.isCompleted) _autostartComplete.complete();
+      return;
+    }
 
     for (final proc in config.processes) {
       if (proc.autostart) {
         // Fire-and-forget: autostart processes are launched in the
         // background so construction doesn't block.
-        start(proc.name);
+        _trackPending(start(proc.name));
       }
     }
+
+    // Signal that autostart enumeration is done (individual start()
+    // calls are still in flight). Tests call settle() to wait for them.
+    if (!_autostartComplete.isCompleted) {
+      _autostartComplete.complete();
+    }
+  }
+
+  /// Wraps a [Future] so [settle] can wait for it.
+  void _trackPending(Future<void> future) {
+    _pendingCount++;
+    _allPendingComplete = Completer<void>();
+    future.whenComplete(() {
+      _pendingCount--;
+      if (_pendingCount == 0 && !_allPendingComplete.isCompleted) {
+        _allPendingComplete.complete();
+      }
+    });
   }
 
   ProcessConfig? _lookupConfig(String name) {
@@ -589,35 +628,79 @@ class ProcessManager {
 
   /// Scans the `pids/` directory on construction and removes stale PID files.
   ///
-  /// For each `.pid` file, checks if the process is still alive. Stale files
-  /// (process not running) are deleted. This prevents PID-reuse false positives
-  /// across TrayForge restarts.
+  /// For each `.pid` file, checks if the process is still alive and whether
+  /// its start time matches the recorded value. Stale files (process not
+  /// running or PID reused by a different process) are deleted.
   void _cleanupStalePidFiles() {
     final dir = Directory(_pidsDir);
-    if (!dir.existsSync()) return;
+    if (!dir.existsSync()) {
+      if (!_cleanupComplete.isCompleted) _cleanupComplete.complete();
+      return;
+    }
 
-    for (final file in dir.listSync()) {
-      if (file is! File || !file.path.endsWith('.pid')) continue;
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.pid'))
+        .toList();
 
+    if (files.isEmpty) {
+      if (!_cleanupComplete.isCompleted) _cleanupComplete.complete();
+      return;
+    }
+
+    var pending = files.length;
+    void checkDone() {
+      pending--;
+      if (pending == 0 && !_cleanupComplete.isCompleted) {
+        _cleanupComplete.complete();
+      }
+    }
+
+    for (final file in files) {
       try {
         final content = file.readAsStringSync();
         final json = jsonDecode(content) as Map<String, dynamic>;
         final pid = json['pid'] as int?;
+        final recordedStart = json['startTime'] as String?;
         if (pid == null) {
           file.deleteSync();
+          checkDone();
           continue;
         }
 
-        // Check if the process is still alive synchronously — we're in
-        // a constructor, so fire-and-forget the async check. Stale files
-        // are cleaned up but we don't block construction on it.
+        // Fire-and-forget: check if the PID is alive and verify start time.
         _processRunner.isPidAlive(pid).then((alive) {
           if (!alive) {
+            // Process not running — PID file is stale.
             try {
               if (file.existsSync()) file.deleteSync();
-            } catch (_) {
-              // File may have been removed by another cleanup path.
-            }
+            } catch (_) {}
+            checkDone();
+            return;
+          }
+
+          // Process is alive — verify start time to guard against PID reuse.
+          if (recordedStart != null) {
+            _processRunner.getProcessStartTime(pid).then((actualStart) {
+              if (actualStart == null) {
+                // Can't verify — keep the file conservatively.
+                checkDone();
+                return;
+              }
+              final recorded = DateTime.tryParse(recordedStart);
+              if (recorded == null ||
+                  actualStart.difference(recorded).inSeconds.abs() > 2) {
+                // Start time mismatch — PID was reused by a different
+                // process. Delete the stale file.
+                try {
+                  if (file.existsSync()) file.deleteSync();
+                } catch (_) {}
+              }
+              checkDone();
+            });
+          } else {
+            checkDone();
           }
         });
       } catch (_) {
@@ -625,6 +708,7 @@ class ProcessManager {
         try {
           file.deleteSync();
         } catch (_) {}
+        checkDone();
       }
     }
   }
@@ -652,4 +736,11 @@ class ProcessManager {
   void _log(String message) {
     _logger?.log(message);
   }
+}
+
+/// Bundles per-process crash-restart state that always travels together.
+class _RestartState {
+  DateTime? lastRestartTime;
+  int count = 0;
+  Timer? cooldownTimer;
 }

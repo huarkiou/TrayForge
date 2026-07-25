@@ -116,6 +116,17 @@ class _MockProcessRunner implements IProcessRunner {
   Future<bool> isPidAlive(int pid) async {
     return alivePids.contains(pid);
   }
+
+  @override
+  Future<DateTime?> getProcessStartTime(int pid) async {
+    // Return a fixed start time for alive PIDs; null otherwise.
+    // Use the PID to generate a deterministic start time so tests can
+    // pre-write matching PID files.
+    if (alivePids.contains(pid)) {
+      return DateTime(2025, 7, 25, 12, 0, pid % 60);
+    }
+    return null;
+  }
 }
 
 class _CapturedStart {
@@ -945,8 +956,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        // Wait for the async isPidAlive check to resolve.
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+        await fresh.settle();
 
         // Stale PID file should be gone.
         expect(File('${pidsDir.path}/stale.pid').existsSync(), isFalse);
@@ -955,31 +965,54 @@ void main() {
       });
 
       test('does not delete PID files for running processes', () async {
-        // Start a process so a real PID file gets written.
-        mockRunner.nextHandle = _MockProcessHandle(pid: 12345);
-        await pm.start('test-svc');
-
-        final pidFile = File('${tmpDir.path}/pids/test-svc.pid');
-        expect(pidFile.existsSync(), isTrue);
-
-        pm.dispose();
+        // Pre-write a PID file with a start time that matches what the
+        // mock returns for PID 12345.
+        final pidsDir = Directory('${tmpDir.path}/pids');
+        pidsDir.createSync(recursive: true);
+        File('${pidsDir.path}/test-svc.pid').writeAsStringSync(
+          '{"pid":12345,"startTime":"2025-07-25T12:00:45.000"}',
+        );
 
         // Mark PID 12345 as alive so cleanup preserves the file.
         mockRunner.alivePids.add(12345);
 
-        // Create a fresh ProcessManager — the PID file for test-svc
-        // should survive because the mock says the process is running.
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
           dataDir: tmpDir.path,
         );
 
-        // Wait for the async isPidAlive check.
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+        await fresh.settle();
 
-        // PID file still exists (process is "alive").
-        expect(pidFile.existsSync(), isTrue);
+        // PID file still exists (process is "alive" and startTime matches).
+        expect(File('${pidsDir.path}/test-svc.pid').existsSync(), isTrue);
+
+        fresh.dispose();
+      });
+
+      test('deletes PID file on startTime mismatch (PID reuse)', () async {
+        // Pre-write a PID file with a startTime that does NOT match
+        // what the mock returns for PID 99999.
+        final pidsDir = Directory('${tmpDir.path}/pids');
+        pidsDir.createSync(recursive: true);
+        File('${pidsDir.path}/zombie.pid').writeAsStringSync(
+          '{"pid":99999,"startTime":"2024-01-01T00:00:00.000"}',
+        );
+
+        // PID 99999 is "alive" but mock returns 2025-07-25T12:00:39.
+        // The startTime mismatch → PID reuse detected.
+        mockRunner.alivePids.add(99999);
+
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        await fresh.settle();
+
+        // PID file should be deleted — startTime mismatch indicates reuse.
+        expect(File('${pidsDir.path}/zombie.pid').existsSync(), isFalse);
 
         fresh.dispose();
       });
@@ -1090,8 +1123,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        // Wait for async start() calls to complete.
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+        await fresh.settle();
 
         expect(mockRunner.starts.length, 2);
         final started = mockRunner.starts.map((s) => s.executable).toSet();
@@ -1114,7 +1146,7 @@ void main() {
           dataDir: emptyDir.path,
         );
 
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+        await fresh.settle();
 
         expect(mockRunner.starts.length, 0,
             reason: 'no config → no autostart');
@@ -1137,7 +1169,7 @@ void main() {
           processRunner: mockRunner,
           dataDir: tmpDir.path,
         );
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+        await fresh.settle();
         expect(mockRunner.starts.length, 1);
         expect(fresh.getState('keep-me'), ProcState.running);
 
@@ -1170,7 +1202,7 @@ void main() {
           processRunner: mockRunner,
           dataDir: tmpDir.path,
         );
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+        await fresh.settle();
         expect(fresh.getState('svc1'), ProcState.running);
 
         // Reload with same config — svc1 should stay running.
