@@ -69,12 +69,12 @@ jobs:
         run: flutter pub get --enforce-lockfile
       - name: Build Windows
         run: flutter build windows --release
-      - name: Package portable zip
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath trayforge-${{ inputs.version }}-windows-portable.zip
+      - name: Package zip
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath trayforge-${{ inputs.version }}-windows.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: trayforge-${{ inputs.version }}-windows-portable
-          path: trayforge-${{ inputs.version }}-windows-portable.zip
+          name: trayforge-${{ inputs.version }}-windows
+          path: trayforge-${{ inputs.version }}-windows.zip
 
   build-linux:
     needs: validate
@@ -94,12 +94,12 @@ jobs:
         run: |
           flutter config --enable-linux-desktop
           flutter build linux --release
-      - name: Package portable tar.gz
-        run: cd build/linux/x64/release/bundle && tar czf ../../../../../trayforge-${{ inputs.version }}-linux-portable.tar.gz .
+      - name: Package tar.gz
+        run: cd build/linux/x64/release/bundle && tar czf ../../../../../trayforge-${{ inputs.version }}-linux.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
-          name: trayforge-${{ inputs.version }}-linux-portable
-          path: trayforge-${{ inputs.version }}-linux-portable.tar.gz
+          name: trayforge-${{ inputs.version }}-linux
+          path: trayforge-${{ inputs.version }}-linux.tar.gz
 
   release:
     needs: [changelog, build-windows, build-linux]
@@ -110,16 +110,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { name: changelog }
       - uses: actions/download-artifact@v4
-        with: { name: trayforge-${{ inputs.version }}-windows-portable }
+        with: { name: trayforge-${{ inputs.version }}-windows }
       - uses: actions/download-artifact@v4
-        with: { name: trayforge-${{ inputs.version }}-linux-portable }
+        with: { name: trayforge-${{ inputs.version }}-linux }
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.changelog.outputs.tag }}
           name: TrayForge ${{ needs.changelog.outputs.tag }}
           body_path: CHANGELOG.md
           files: |
-            trayforge-${{ inputs.version }}-windows-portable.zip
-            trayforge-${{ inputs.version }}-linux-portable.tar.gz
+            trayforge-${{ inputs.version }}-windows.zip
+            trayforge-${{ inputs.version }}-linux.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
