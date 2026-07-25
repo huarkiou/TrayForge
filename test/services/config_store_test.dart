@@ -16,7 +16,6 @@ void main() {
     });
 
     tearDown(() {
-      store.dispose();
       tmpDir.deleteSync(recursive: true);
     });
 
@@ -181,8 +180,6 @@ void main() {
 
         nestedStore.save(AppConfig());
         expect(File('$nested/config.json').existsSync(), isTrue);
-
-        nestedStore.dispose();
       });
 
       test('backs up existing config before overwriting', () {
@@ -312,8 +309,6 @@ void main() {
             (sum, f) => sum + f.lengthSync(),
           );
           expect(totalSize, lessThanOrEqualTo(200));
-
-          tinyStore.dispose();
         },
       );
 
@@ -419,36 +414,6 @@ void main() {
           ),
           returnsNormally,
         );
-      });
-    });
-
-    // ---- configChanged stream ----
-
-    group('configChanged', () {
-      test('emits when save is called', () async {
-        final events = <void>[];
-        final sub = store.configChanged.listen((_) => events.add(null));
-
-        store.save(
-          AppConfig(
-            processes: [ProcessConfig(name: 'a', cmd: 'a')],
-          ),
-        );
-
-        // Allow microtask to process
-        await Future<void>.delayed(Duration.zero);
-        expect(events.length, 1);
-
-        store.save(
-          AppConfig(
-            processes: [ProcessConfig(name: 'b', cmd: 'b')],
-          ),
-        );
-
-        await Future<void>.delayed(Duration.zero);
-        expect(events.length, 2);
-
-        await sub.cancel();
       });
     });
   });

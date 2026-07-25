@@ -31,7 +31,7 @@ class SettingsViewModel extends ChangeNotifier {
        _processManager = processManager,
        _autostart = autostart {
     _reload();
-    _configSub = configStore.configChanged.listen((_) => _reload());
+    _configSub = processManager.onConfigReloaded.listen((_) => _reload());
   }
 
   /// All process configs in list order.
@@ -139,7 +139,7 @@ class SettingsViewModel extends ChangeNotifier {
     }
   }
 
-  /// Reloads from [ConfigStore] when [configChanged] fires externally.
+  /// Reloads from [ConfigStore] when [ProcessManager.onConfigReloaded] fires.
   void _reload() {
     final config = _configStore.load();
     _processes = config?.processes.toList() ?? [];
@@ -149,6 +149,10 @@ class SettingsViewModel extends ChangeNotifier {
   }
 
   /// Persists only global settings (refresh interval, history limit).
+  ///
+  /// Writes to disk and notifies listeners. Does **not** call
+  /// [ProcessManager.reloadConfig] — globals take effect on next process
+  /// start and don't require a hot reload.
   void _saveGlobals() {
     final config = _configStore.load() ?? AppConfig.defaultConfig();
     final newConfig = AppConfig(
@@ -160,11 +164,14 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Persists the current list and triggers a ProcessManager reload.
+  /// Persists the current process list and triggers a ProcessManager reload.
   ///
-  /// Follows the spec flow:
-  ///   1. ConfigStore.save() — fires configChanged → ViewModels rebuild
-  ///   2. ProcessManager.reloadConfig() — stops removed, starts new autostart
+  /// Follows Path A from the spec:
+  ///   1. ConfigStore.save() — write disk only
+  ///   2. ProcessManager.reloadConfig() — stop/start + emit onConfigReloaded
+  ///      → DashboardViewModel._rebuild()
+  ///      → TrayViewModel._rebuildSubscriptions()
+  ///      → SettingsViewModel._reload() (via onConfigReloaded subscription)
   void _save() {
     final config = _configStore.load() ?? AppConfig.defaultConfig();
     final newConfig = AppConfig(

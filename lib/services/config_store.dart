@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,15 +10,13 @@ import 'package:trayforge/foundation/models.dart';
 /// Reads and writes [AppConfig] to `config.json` under [dataDir],
 /// with automatic backup and validation. Compatible with Python
 /// trayforge JSON schema.
+///
+/// ConfigStore is a pure persistence module — it does not broadcast
+/// changes. Callers (typically [ProcessManager]) are responsible for
+/// notifying downstream consumers after a config write.
 class ConfigStore {
   final String dataDir;
   final int maxBackupBytes;
-
-  final StreamController<void> _configChangedController =
-      StreamController<void>.broadcast();
-
-  /// A stream that emits whenever the config is saved.
-  Stream<void> get configChanged => _configChangedController.stream;
 
   ConfigStore({String? dataDir, this.maxBackupBytes = 10 * 1024 * 1024})
     : dataDir = dataDir ?? Logger.getDataDir();
@@ -55,7 +52,6 @@ class ConfigStore {
   /// Creates the data directory if needed. Backs up the existing config
   /// file to `backups/config.<timestamp>.json` before overwriting, then
   /// prunes old backup files if the backup directory exceeds [maxBackupBytes].
-  /// Fires [configChanged] after writing.
   void save(AppConfig config) {
     _backupExisting();
 
@@ -69,14 +65,6 @@ class ConfigStore {
     File(_configPath).writeAsStringSync(encoded, encoding: utf8, flush: true);
 
     _prune();
-    _configChangedController.add(null);
-  }
-
-  /// Reloads the configuration from disk and fires [configChanged]
-  /// so all listeners refresh. Useful when config.json is replaced
-  /// externally at runtime.
-  void reload() {
-    _configChangedController.add(null);
   }
 
   /// Validates a single [ProcessConfig].
@@ -103,11 +91,6 @@ class ConfigStore {
         throw ArgumentError('Invalid webui_pattern regex: ${e.message}');
       }
     }
-  }
-
-  /// Releases resources held by the [configChanged] stream.
-  void dispose() {
-    _configChangedController.close();
   }
 
   // ---- Private helpers ----

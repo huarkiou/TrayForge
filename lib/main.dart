@@ -89,11 +89,6 @@ Future<void> main() async {
     onExit: _exitApp,
   );
 
-  // Config changes should refresh the tray.
-  _configStore.configChanged.listen((_) {
-    _trayViewModel.onConfigChanged();
-  });
-
   // Tray state changes → update icon and menu.
   _trayViewModel.addListener(_onTrayStateChanged);
 
@@ -168,7 +163,6 @@ Future<void> _exitApp() async {
   _dashboardViewModel.dispose();
   _settingsViewModel.dispose();
   _processManager.dispose();
-  _configStore.dispose();
   await trayManager.destroy();
   await windowManager.destroy();
 

@@ -191,10 +191,22 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
       return;
     }
 
+    final wasRunning = widget.isEditing && vm.isRunning(config.name);
+
     if (widget.isEditing) {
       vm.edit(widget.editIndex!, config);
     } else {
       vm.add(config);
+    }
+
+    if (wasRunning) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Process is running — changes will take effect on next start',
+          ),
+        ),
+      );
     }
 
     Navigator.of(context).pop();

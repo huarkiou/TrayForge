@@ -72,7 +72,6 @@ void main() {
 
     tearDown(() {
       pm.dispose();
-      configStore.dispose();
       tmpDir.deleteSync(recursive: true);
     });
 
@@ -1120,7 +1119,6 @@ void main() {
 
       test('skips autostart when no config is loaded', () async {
         // Don't write any config.
-        configStore.dispose();
         final emptyDir = Directory.systemTemp.createTempSync(
           'trayforge_pm_empty_',
         );
@@ -1137,7 +1135,6 @@ void main() {
         expect(mockRunner.starts.length, 0, reason: 'no config → no autostart');
 
         fresh.dispose();
-        emptyStore.dispose();
         emptyDir.deleteSync(recursive: true);
       });
     });
@@ -1159,16 +1156,18 @@ void main() {
         expect(fresh.getState('keep-me'), ProcState.running);
 
         // Reload: remove 'keep-me', add 'new-svc' with autostart.
-        mockRunner.nextHandle = MockProcessHandle(pid: 801);
-        await fresh.reloadConfig(
-          AppConfig(
-            outputRefreshMs: 10,
-            outputHistoryLimit: 100,
-            processes: [
-              ProcessConfig(name: 'new-svc', cmd: 'new.exe', autostart: true),
-            ],
-          ),
+        // Save the new config to disk so _lookupConfig can find it.
+        final newConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'new-svc', cmd: 'new.exe', autostart: true),
+          ],
         );
+        writeConfig(tmpDir, newConfig);
+
+        mockRunner.nextHandle = MockProcessHandle(pid: 801);
+        await fresh.reloadConfig(newConfig);
 
         // 'keep-me' should have been stopped.
         expect(fresh.getState('keep-me'), ProcState.stopped);
@@ -1196,20 +1195,81 @@ void main() {
         final output = <String>[];
         fresh.outputStream('svc1').listen(output.add);
 
-        mockRunner.nextHandle = MockProcessHandle(pid: 901);
-        await fresh.reloadConfig(
-          AppConfig(
-            outputRefreshMs: 10,
-            outputHistoryLimit: 100,
-            processes: [
-              ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
-            ],
-          ),
+        final sameConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
+          ],
         );
+        writeConfig(tmpDir, sameConfig);
+
+        mockRunner.nextHandle = MockProcessHandle(pid: 901);
+        await fresh.reloadConfig(sameConfig);
 
         expect(fresh.getState('svc1'), ProcState.running);
         // No second start call.
         expect(mockRunner.starts.length, 1);
+
+        fresh.dispose();
+      });
+
+      test('emits onConfigReloaded after processing', () async {
+        writeConfig(tmpDir, _testConfig(name: 'svc1', autostart: true));
+
+        mockRunner.nextHandle = MockProcessHandle(pid: 700);
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await fresh.init();
+
+        final events = <void>[];
+        final sub = fresh.onConfigReloaded.listen((_) => events.add(null));
+
+        final config = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
+          ],
+        );
+        writeConfig(tmpDir, config);
+        await fresh.reloadConfig(config);
+
+        expect(events.length, 1);
+
+        await sub.cancel();
+        fresh.dispose();
+      });
+
+      test('cleans up stale _procs entries for deleted processes', () async {
+        // Start a process so it has a _ProcsRuntime entry.
+        writeConfig(tmpDir, _testConfig(name: 'will-be-removed'));
+        mockRunner.nextHandle = MockProcessHandle(pid: 600);
+
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await fresh.start('will-be-removed');
+
+        // Verify the entry exists.
+        expect(fresh.getState('will-be-removed'), ProcState.running);
+
+        // Reload without the process.
+        final newConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [],
+        );
+        writeConfig(tmpDir, newConfig);
+        await fresh.reloadConfig(newConfig);
+
+        // The runtime entry should be cleaned up.
+        expect(fresh.getState('will-be-removed'), ProcState.stopped);
 
         fresh.dispose();
       });

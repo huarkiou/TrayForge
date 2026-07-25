@@ -95,6 +95,13 @@ class ProcessManager {
   /// Broadcast stream of WebUI URL detections.
   Stream<WebUiEvent> get onWebUiDetected => _webuiController.stream;
 
+  // Config reload broadcast
+  final StreamController<void> _onConfigReloadedController =
+      StreamController<void>.broadcast(sync: true);
+
+  /// A stream that emits whenever the config is reloaded via [reloadConfig].
+  Stream<void> get onConfigReloaded => _onConfigReloadedController.stream;
+
   ProcessManager({
     required ConfigStore configStore,
     IProcessRunner? processRunner,
@@ -318,13 +325,18 @@ class ProcessManager {
       proc.dispose();
     }
     _webuiController.close();
+    _onConfigReloadedController.close();
   }
 
   /// Hot-swaps configuration without restarting already-running processes.
   ///
   /// Starts new processes that have `autostart: true` and are not already
   /// running. Stops processes that are running but no longer present in
-  /// the new config.
+  /// the new config. Cleans up stale [_procs] entries for deleted/renamed
+  /// processes. Emits [onConfigReloaded] on completion.
+  ///
+  /// Does **not** write the config to disk — callers must [ConfigStore.save]
+  /// beforehand if persistence is desired.
   Future<void> reloadConfig(AppConfig config) async {
     // Determine which processes are currently running.
     final runningNames = _procs.entries
@@ -339,8 +351,13 @@ class ProcessManager {
       await stop(name);
     }
 
-    // Save the new config so subsequent _lookupConfig calls see it.
-    _configStore.save(config);
+    // Dispose stale _procs entries for deleted/renamed processes that
+    // are not currently running (running ones were stopped above).
+    final stale = _procs.keys.where((n) => !newNames.contains(n)).toList();
+    for (final name in stale) {
+      _procs[name]?.dispose();
+      _procs.remove(name);
+    }
 
     // Start new autostart processes that aren't already running.
     for (final proc in config.processes) {
@@ -348,6 +365,8 @@ class ProcessManager {
         await start(proc.name);
       }
     }
+
+    _onConfigReloadedController.add(null);
   }
 
   /// Clears the output buffer for [name], discarding any un-flushed lines.

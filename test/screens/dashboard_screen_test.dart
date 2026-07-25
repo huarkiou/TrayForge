@@ -23,6 +23,9 @@ class _FakeProcessManager extends Fake implements ProcessManager {
   Stream<WebUiEvent> get onWebUiDetected => const Stream<WebUiEvent>.empty();
 
   @override
+  Stream<void> get onConfigReloaded => const Stream<void>.empty();
+
+  @override
   ProcState getState(String name) => ProcState.stopped;
 }
 
@@ -34,9 +37,6 @@ class _FakeConfigStore extends Fake implements ConfigStore {
 
   @override
   AppConfig? load() => _config;
-
-  @override
-  Stream<void> get configChanged => const Stream<void>.empty();
 }
 
 // ---------------------------------------------------------------------------
