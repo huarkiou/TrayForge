@@ -204,19 +204,16 @@ class _AppWindowListener extends WindowListener {
 /// [TrayViewModel.buildMenu]; this listener handles
 /// double-click detection and right-click context menu.
 class _AppTrayListener extends TrayListener {
-  DateTime? _lastMouseDown;
-
   @override
   void onTrayIconMouseDown() {
-    // Double-click detection: two clicks within 400ms open Dashboard.
-    final now = DateTime.now();
-    final last = _lastMouseDown;
-    _lastMouseDown = now;
-
-    if (last != null &&
-        now.difference(last) < const Duration(milliseconds: 400)) {
-      _showDashboard();
-    }
+    // Single-click toggles Dashboard visibility.
+    windowManager.isVisible().then((visible) {
+      if (visible) {
+        _hideDashboard();
+      } else {
+        _showDashboard();
+      }
+    });
   }
 
   @override
