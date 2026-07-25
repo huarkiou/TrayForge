@@ -160,6 +160,8 @@ Future<void> _exitApp() async {
 
   _trayViewModel.removeListener(_onTrayStateChanged);
   _trayViewModel.dispose();
+  _dashboardViewModel.dispose();
+  _settingsViewModel.dispose();
   _processManager.dispose();
   _configStore.dispose();
   _singleInstance.release();

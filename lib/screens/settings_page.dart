@@ -65,62 +65,54 @@ class _SettingsPageState extends State<SettingsPage> {
     final config = _vm.processes[index];
 
     if (_vm.isRunning(config.name)) {
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Stop and delete?'),
-          content: Text(
+      final ok = await _showDeleteDialog(
+        title: 'Stop and delete?',
+        content:
             '"${config.name}" is currently running. '
             'Do you want to stop it and delete the configuration?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
-              child: const Text('Stop and Delete'),
-            ),
-          ],
-        ),
+        confirmLabel: 'Stop and Delete',
       );
-
-      if (result == true) {
+      if (ok) {
         await _vm.stopProcess(config.name);
         _vm.delete(index);
       }
     } else {
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Delete process?'),
-          content: Text(
-            'Delete "${config.name}"? This cannot be undone.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
-              child: const Text('Delete'),
-            ),
-          ],
-        ),
+      final ok = await _showDeleteDialog(
+        title: 'Delete process?',
+        content: 'Delete "${config.name}"? This cannot be undone.',
+        confirmLabel: 'Delete',
       );
-
-      if (result == true) {
+      if (ok) {
         _vm.delete(index);
       }
     }
+  }
+
+  /// Shows a confirmation dialog with a destructive action.
+  Future<bool> _showDeleteDialog({
+    required String title,
+    required String content,
+    required String confirmLabel,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+    return result == true;
   }
 
   // ---- Build ----

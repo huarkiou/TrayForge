@@ -110,6 +110,10 @@ class SettingsViewModel extends ChangeNotifier {
   }
 
   /// Persists the current list and triggers a ProcessManager reload.
+  ///
+  /// Follows the spec flow:
+  ///   1. ConfigStore.save() — fires configChanged → ViewModels rebuild
+  ///   2. ProcessManager.reloadConfig() — stops removed, starts new autostart
   void _save() {
     final config = _configStore.load() ?? AppConfig.defaultConfig();
     final newConfig = AppConfig(
@@ -117,6 +121,7 @@ class SettingsViewModel extends ChangeNotifier {
       outputRefreshMs: config.outputRefreshMs,
       processes: _processes,
     );
+    _configStore.save(newConfig);
     _processManager.reloadConfig(newConfig);
     notifyListeners();
   }
