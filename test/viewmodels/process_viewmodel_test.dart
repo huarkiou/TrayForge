@@ -93,6 +93,9 @@ class _MockProcessRunner implements IProcessRunner {
 
   @override
   Future<DateTime?> getProcessStartTime(int pid) async => null;
+
+  @override
+  Future<bool> killPid(int pid) async => true;
 }
 
 // ---------------------------------------------------------------------------

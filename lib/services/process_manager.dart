@@ -233,14 +233,7 @@ class ProcessManager {
     _pushSystemMessage(name, 'Process stopping...');
 
     try {
-      final pid = handle.pid;
-      if (Platform.isWindows) {
-        await Process.run(
-            'taskkill', ['/t', '/f', '/pid', pid.toString()]);
-      } else {
-        await Process.run('pkill', ['-P', pid.toString()]);
-        handle.kill(signal: ProcessSignal.sigkill);
-      }
+      await _processRunner.killPid(handle.pid);
     } catch (e) {
       _log('Error killing process tree for $name: $e');
       try {
@@ -607,7 +600,10 @@ class ProcessManager {
             _pushSystemMessage(
                 name, 'delete_before_start: deleted "$relativePath"');
           } catch (_) {
-            // File may be locked — attempt to kill the holder via PID file.
+            // Locked files from deleted orphan processes are handled by
+            // the startup orphan cleanup (_cleanupStalePidFiles), which
+            // kills the holder before we reach this point. This log is
+            // a safety net for truly external lock holders.
             _pushSystemMessage(
                 name,
                 'delete_before_start: could not delete "$relativePath", '
@@ -696,8 +692,21 @@ class ProcessManager {
                 try {
                   if (file.existsSync()) file.deleteSync();
                 } catch (_) {}
+                checkDone();
+                return;
               }
-              checkDone();
+
+              // Start time match — orphan from a previous TrayForge session.
+              // Kill it with the same platform dispatch stop() uses.
+              final procName = p.basenameWithoutExtension(file.path);
+              _processRunner.killPid(pid).then((_) {
+                _log('[TrayForge] Process "$procName": killed orphaned '
+                    'instance from previous session (PID $pid)');
+                try {
+                  if (file.existsSync()) file.deleteSync();
+                } catch (_) {}
+                checkDone();
+              });
             });
           } else {
             checkDone();

@@ -80,6 +80,8 @@ class _MockProcessRunner implements IProcessRunner {
   Exception? throwOnStart;
   bool isRunning = false;
   final Set<int> alivePids = {};
+  final List<int> killedPids = [];
+  bool killPidResult = true;
 
   /// Enqueue handles for successive start() calls. Falls back to
   /// [nextHandle] when the queue is exhausted.
@@ -126,6 +128,14 @@ class _MockProcessRunner implements IProcessRunner {
       return DateTime(2025, 7, 25, 12, 0, pid % 60);
     }
     return null;
+  }
+
+  @override
+  Future<bool> killPid(int pid) async {
+    killedPids.add(pid);
+    // Simulate: after kill, the PID is no longer alive.
+    alivePids.remove(pid);
+    return killPidResult;
   }
 }
 
@@ -964,7 +974,8 @@ void main() {
         fresh.dispose();
       });
 
-      test('does not delete PID files for running processes', () async {
+      test('kills orphan with matching startTime and deletes PID file',
+          () async {
         // Pre-write a PID file with a start time that matches what the
         // mock returns for PID 12345.
         final pidsDir = Directory('${tmpDir.path}/pids');
@@ -973,7 +984,8 @@ void main() {
           '{"pid":12345,"startTime":"2025-07-25T12:00:45.000"}',
         );
 
-        // Mark PID 12345 as alive so cleanup preserves the file.
+        // PID 12345 is alive AND startTime matches — orphan from a
+        // previous TrayForge session.
         mockRunner.alivePids.add(12345);
 
         final fresh = ProcessManager(
@@ -984,8 +996,9 @@ void main() {
 
         await fresh.settle();
 
-        // PID file still exists (process is "alive" and startTime matches).
-        expect(File('${pidsDir.path}/test-svc.pid').existsSync(), isTrue);
+        // Orphan should be killed and its PID file deleted.
+        expect(mockRunner.killedPids, contains(12345));
+        expect(File('${pidsDir.path}/test-svc.pid').existsSync(), isFalse);
 
         fresh.dispose();
       });
@@ -1013,6 +1026,119 @@ void main() {
 
         // PID file should be deleted — startTime mismatch indicates reuse.
         expect(File('${pidsDir.path}/zombie.pid').existsSync(), isFalse);
+
+        fresh.dispose();
+      });
+
+      test('kills orphan processes on construction (matching startTime)',
+          () async {
+        // Pre-write a PID file with a startTime that matches the mock.
+        // Mock returns DateTime(2025, 7, 25, 12, 0, 42 % 60) = 12:00:42
+        // for PID 42.
+        final pidsDir = Directory('${tmpDir.path}/pids');
+        pidsDir.createSync(recursive: true);
+        File('${pidsDir.path}/orphan-svc.pid').writeAsStringSync(
+          '{"pid":42,"startTime":"2025-07-25T12:00:42.000"}',
+        );
+
+        mockRunner.alivePids.add(42);
+
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        await fresh.settle();
+
+        // Orphan should have been killed.
+        expect(mockRunner.killedPids, contains(42));
+        // PID file should have been deleted after kill.
+        expect(
+          File('${pidsDir.path}/orphan-svc.pid').existsSync(),
+          isFalse,
+        );
+
+        fresh.dispose();
+      });
+
+      test('does not kill non-orphan (different startTime = PID reuse)',
+          () async {
+        // Pre-write a PID file with a startTime that does NOT match.
+        final pidsDir = Directory('${tmpDir.path}/pids');
+        pidsDir.createSync(recursive: true);
+        File('${pidsDir.path}/reused.pid').writeAsStringSync(
+          '{"pid":77777,"startTime":"2024-01-01T00:00:00.000"}',
+        );
+
+        // PID 77777 is alive but mock returns 2025-07-25T12:00:17 → mismatch.
+        mockRunner.alivePids.add(77777);
+
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        await fresh.settle();
+
+        // killPid should NOT have been called — startTime mismatch means
+        // PID was reused, not an orphan.
+        expect(mockRunner.killedPids, isNot(contains(77777)));
+        // PID file should still be deleted (stale entry).
+        expect(File('${pidsDir.path}/reused.pid').existsSync(), isFalse);
+
+        fresh.dispose();
+      });
+
+      test('delete_before_start succeeds after orphan cleanup kills holder',
+          () async {
+        // Simulate an orphan that held a lock file, then verify the lock
+        // is deletable on start because the orphan was killed at startup.
+        final pidsDir = Directory('${tmpDir.path}/pids');
+        pidsDir.createSync(recursive: true);
+
+        // Pre-write orphan PID file for a process that we'll later start.
+        File('${pidsDir.path}/test-svc.pid').writeAsStringSync(
+          '{"pid":99,"startTime":"2025-07-25T12:00:39.000"}',
+        );
+
+        // Create a lock file in the cwd.
+        final cwdDir = Directory('${tmpDir.path}/app');
+        cwdDir.createSync(recursive: true);
+        final lockFile = File('${cwdDir.path}/app.lock');
+        lockFile.writeAsStringSync('stale lock');
+
+        mockRunner.alivePids.add(99);
+
+        // Construction kills the orphan (PID 99).
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        await fresh.settle();
+
+        // Orphan was killed.
+        expect(mockRunner.killedPids, contains(99));
+        expect(File('${pidsDir.path}/test-svc.pid').existsSync(), isFalse);
+
+        // Now configure the process with delete_before_start pointing at
+        // the lock file. Since the orphan was killed, the file should be
+        // deletable when start() runs.
+        _writeConfig(tmpDir, _testConfig(
+          cwd: cwdDir.path,
+          deleteBeforeStart: ['app.lock'],
+        ));
+
+        mockRunner.nextHandle = _MockProcessHandle(pid: 100);
+        await fresh.start('test-svc');
+
+        // Lock file should be gone — deleted by delete_before_start since
+        // the orphan holder was killed at startup.
+        expect(lockFile.existsSync(), isFalse);
+        expect(fresh.getState('test-svc'), ProcState.running);
 
         fresh.dispose();
       });

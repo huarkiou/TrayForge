@@ -42,6 +42,15 @@ abstract class IProcessRunner {
   /// Returns `null` if the process is not running or the start time
   /// cannot be determined.
   Future<DateTime?> getProcessStartTime(int pid);
+
+  /// Kills the process tree rooted at [pid].
+  ///
+  /// Uses the same platform dispatch as [ProcessManager.stop]:
+  /// `taskkill /t /f /pid <pid>` on Windows,
+  /// `pkill -P <pid>` + `SIGKILL` on Linux.
+  ///
+  /// Returns `true` if the kill succeeded.
+  Future<bool> killPid(int pid);
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +164,24 @@ class RealProcessRunner implements IProcessRunner {
       // Fall through to null.
     }
     return null;
+  }
+
+  @override
+  Future<bool> killPid(int pid) async {
+    try {
+      if (Platform.isWindows) {
+        final result = await Process.run(
+          'taskkill', ['/t', '/f', '/pid', pid.toString()],
+        );
+        return result.exitCode == 0;
+      } else {
+        await Process.run('pkill', ['-P', pid.toString()]);
+        Process.killPid(pid, ProcessSignal.sigkill);
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
