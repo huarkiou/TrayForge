@@ -29,6 +29,7 @@ late final TrayViewModel _trayViewModel;
 late final DashboardViewModel _dashboardViewModel;
 late final Autostart _autostart;
 late final SettingsViewModel _settingsViewModel;
+Timer? _wakeTimer;
 
 // ---------------------------------------------------------------------------
 // Entry point
@@ -129,7 +130,7 @@ Future<void> main() async {
 
   // ---- Wake signal polling (second instance → show dashboard) ----
 
-  Timer.periodic(const Duration(seconds: 1), (_) {
+  _wakeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
     if (_singleInstance.checkForWakeSignal()) {
       _showDashboard();
     }
@@ -152,6 +153,11 @@ Future<void> _showDashboard() async {
 Future<void> _exitApp() async {
   _logger.log('TrayForge shutting down');
 
+  // Stop the wake-signal polling timer immediately so the event loop
+  // can wind down after the window is destroyed.
+  _wakeTimer?.cancel();
+  _wakeTimer = null;
+
   // Stop all running processes.
   final config = _configStore.load();
   if (config != null) {
@@ -169,9 +175,17 @@ Future<void> _exitApp() async {
   _settingsViewModel.dispose();
   _processManager.dispose();
   _configStore.dispose();
-  _singleInstance.release();
   await trayManager.destroy();
   await windowManager.destroy();
+
+  // Release the single-instance lock last — only after all cleanup is
+  // complete.  This prevents a second instance from starting while this
+  // process is still tearing down tray / window resources.
+  _singleInstance.release();
+
+  // Flutter desktop does not auto-exit after the last window closes;
+  // terminate the process explicitly.
+  exit(0);
 }
 
 void _onTrayStateChanged() {
@@ -198,8 +212,8 @@ class _AppWindowListener extends WindowListener {
 /// Handles tray events: menu clicks and double-click.
 ///
 /// Menu item actions are handled by onClick closures set in
-/// [TrayViewModel.buildMenu]; this listener only handles
-/// double-click detection on the tray icon itself.
+/// [TrayViewModel.buildMenu]; this listener handles
+/// double-click detection and right-click context menu.
 class _AppTrayListener extends TrayListener {
   DateTime? _lastMouseDown;
 
@@ -213,6 +227,14 @@ class _AppTrayListener extends TrayListener {
     if (last != null && now.difference(last) < const Duration(milliseconds: 400)) {
       _showDashboard();
     }
+  }
+
+  @override
+  void onTrayIconRightMouseDown() {
+    // Show the native context menu on right-click.
+    // The tray_manager plugin fires this event but does NOT
+    // auto-pop the menu — the app must call popUpContextMenu.
+    trayManager.popUpContextMenu();
   }
 }
 
