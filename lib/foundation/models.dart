@@ -49,6 +49,7 @@ class ProcessConfig {
   final List<String> deleteBeforeStart;
   final int? maxRestarts;
   final Map<String, String>? env;
+  final bool cleanupCwd;
 
   const ProcessConfig({
     required this.name,
@@ -61,6 +62,7 @@ class ProcessConfig {
     this.deleteBeforeStart = const [],
     this.maxRestarts,
     this.env,
+    this.cleanupCwd = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -74,6 +76,7 @@ class ProcessConfig {
         'delete_before_start': deleteBeforeStart,
         if (maxRestarts != null) 'max_restarts': maxRestarts,
         if (env != null) 'env': env,
+        'cleanup_cwd': cleanupCwd,
       };
 
   factory ProcessConfig.fromJson(Map<String, dynamic> json) {
@@ -90,6 +93,7 @@ class ProcessConfig {
       env: (json['env'] as Map<String, dynamic>?)?.map(
         (k, v) => MapEntry(k, v as String),
       ),
+      cleanupCwd: json['cleanup_cwd'] as bool? ?? false,
     );
   }
 
@@ -115,6 +119,7 @@ class ProcessConfig {
     List<String>? deleteBeforeStart,
     int? maxRestarts,
     Map<String, String>? env,
+    bool? cleanupCwd,
   }) {
     return ProcessConfig(
       name: name ?? this.name,
@@ -127,6 +132,7 @@ class ProcessConfig {
       deleteBeforeStart: deleteBeforeStart ?? this.deleteBeforeStart,
       maxRestarts: maxRestarts ?? this.maxRestarts,
       env: env ?? this.env,
+      cleanupCwd: cleanupCwd ?? this.cleanupCwd,
     );
   }
 }

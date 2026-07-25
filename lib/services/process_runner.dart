@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:trayforge_flutter/foundation/process_cwd.dart';
+
 /// Abstract handle to a running process.
 ///
 /// Exposes the minimal surface that [ProcessManager] needs:
@@ -51,6 +53,12 @@ abstract class IProcessRunner {
   ///
   /// Returns `true` if the kill succeeded.
   Future<bool> killPid(int pid);
+
+  /// Returns the set of PIDs whose current working directory matches [cwd].
+  ///
+  /// Used by [cleanupCwd] to kill residual processes from the same working
+  /// directory before starting a new instance.
+  Future<Set<int>> findPidsByCwd(String cwd);
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +190,13 @@ class RealProcessRunner implements IProcessRunner {
     } catch (_) {
       return false;
     }
+  }
+
+  @override
+  Future<Set<int>> findPidsByCwd(String cwd) async {
+    // Import is conditional on dart:ffi availability; on platforms
+    // without it the call is a no-op.
+    return findPidsByCwd(cwd);
   }
 
   @override

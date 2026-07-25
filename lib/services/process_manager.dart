@@ -185,6 +185,12 @@ class ProcessManager {
         // Best-effort; proceed with launch if check fails.
       }
 
+      // Kill residual processes from the same working directory before
+      // starting.  Matches Python TrayForge's `cleanup_cwd` behaviour.
+      if (procConfig.cleanupCwd && procConfig.cwd != null) {
+        await _cleanupCwd(name, procConfig.cwd!);
+      }
+
       // Delete lock files before start
       _deleteBeforeStartFiles(name, procConfig);
 
@@ -605,6 +611,39 @@ class ProcessManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Private: cleanup_cwd
+  // ---------------------------------------------------------------------------
+
+  /// Kills all processes whose current working directory matches [cwd].
+  ///
+  /// Mirrors Python TrayForge's `_kill_cwd_processes` which used psutil.
+  /// The Flutter version uses [IProcessRunner.findPidsByCwd] (FFI on
+  /// Windows, /proc on Linux).
+  Future<void> _cleanupCwd(String name, String cwd) async {
+    _pushSystemMessage(name, 'Cleanup: searching for residual processes '
+        'in "$cwd"...');
+
+    try {
+      final pids = await _processRunner.findPidsByCwd(cwd);
+      if (pids.isEmpty) return;
+
+      for (final pid in pids) {
+        _pushSystemMessage(
+            name, 'Cleanup: killing residual process (PID $pid)');
+        await _processRunner.killPid(pid);
+      }
+
+      // Brief wait for OS to release file handles.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      _pushSystemMessage(
+          name, 'Cleanup: killed ${pids.length} residual process(es)');
+    } catch (e) {
+      _pushSystemMessage(name, 'Cleanup: error during cwd cleanup: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Private: delete_before_start
   // ---------------------------------------------------------------------------
 
@@ -612,6 +651,10 @@ class ProcessManager {
   ///
   /// Each path is resolved relative to [ProcessConfig.cwd]. Paths that
   /// escape the cwd subtree are blocked and reported via system messages.
+  ///
+  /// When a file is locked, [cleanupCwd] is attempted (kill residual
+  /// processes) and the delete is retried once — matching Python TrayForge's
+  /// behaviour.
   void _deleteBeforeStartFiles(String name, ProcessConfig procConfig) {
     final paths = procConfig.deleteBeforeStart;
     if (paths.isEmpty) return;
@@ -646,14 +689,30 @@ class ProcessManager {
             _pushSystemMessage(
                 name, 'delete_before_start: deleted "$relativePath"');
           } catch (_) {
-            // Locked files from deleted orphan processes are handled by
-            // the startup orphan cleanup (_cleanupStalePidFiles), which
-            // kills the holder before we reach this point. This log is
-            // a safety net for truly external lock holders.
+            // File is locked — try killing residual processes and retry.
             _pushSystemMessage(
                 name,
-                'delete_before_start: could not delete "$relativePath", '
-                    'file may be locked');
+                'delete_before_start: "$relativePath" is locked, '
+                    'attempting cwd cleanup...');
+
+            // Fire cwd cleanup inline and retry the delete.
+            _cleanupCwd(name, cwdCanonical).then((_) {
+              try {
+                if (file.existsSync()) {
+                  file.deleteSync();
+                  _pushSystemMessage(
+                      name,
+                      'delete_before_start: deleted "$relativePath" '
+                          '(after cwd cleanup)');
+                }
+              } catch (_) {
+                _pushSystemMessage(
+                    name,
+                    'delete_before_start: could not delete "$relativePath" '
+                        'even after cwd cleanup — file may be locked by an '
+                        'external process');
+              }
+            });
           }
         }
       } catch (e) {

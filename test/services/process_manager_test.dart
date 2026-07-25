@@ -22,6 +22,7 @@ AppConfig _testConfig({
   int? maxRestarts,
   List<String>? deleteBeforeStart,
   Map<String, String>? env,
+  bool cleanupCwd = false,
 }) {
   return AppConfig(
     outputRefreshMs: outputRefreshMs,
@@ -38,6 +39,7 @@ AppConfig _testConfig({
         maxRestarts: maxRestarts,
         deleteBeforeStart: deleteBeforeStart ?? const [],
         env: env,
+        cleanupCwd: cleanupCwd,
       ),
     ],
   );
@@ -1186,6 +1188,154 @@ void main() {
         expect(fresh.getState('svc1'), ProcState.running);
         // No second start call.
         expect(mockRunner.starts.length, 1);
+
+        fresh.dispose();
+      });
+    });
+
+    // ---- cleanup_cwd ----
+
+    group('cleanup_cwd', () {
+      test('kills processes with matching cwd before start', () async {
+        final cwdDir = Directory('${tmpDir.path}/app');
+        cwdDir.createSync(recursive: true);
+
+        writeConfig(tmpDir, _testConfig(
+          cwd: cwdDir.path,
+          cleanupCwd: true,
+        ));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        // Two residual PIDs in the same cwd.
+        mockRunner.pidsByCwd.addAll([100, 200]);
+        mockRunner.nextHandle = MockProcessHandle(pid: 300);
+
+        final output = <String>[];
+        fresh.outputStream('test-svc').listen(output.add);
+
+        await fresh.start('test-svc');
+
+        // Both residuals should have been killed.
+        expect(mockRunner.killedPids, contains(100));
+        expect(mockRunner.killedPids, contains(200));
+        expect(
+          output.any((l) =>
+              l.contains('[TrayForge]') && l.contains('residual process')),
+          isTrue,
+        );
+        // Process should have started normally after cleanup.
+        expect(fresh.getState('test-svc'), ProcState.running);
+
+        fresh.dispose();
+      });
+
+      test('skips cleanup when cleanup_cwd is false', () async {
+        final cwdDir = Directory('${tmpDir.path}/app');
+        cwdDir.createSync(recursive: true);
+
+        writeConfig(tmpDir, _testConfig(
+          cwd: cwdDir.path,
+          cleanupCwd: false,
+        ));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        mockRunner.pidsByCwd.addAll([100, 200]);
+        mockRunner.nextHandle = MockProcessHandle(pid: 300);
+
+        await fresh.start('test-svc');
+
+        // No PIDs should have been killed — cleanup_cwd is disabled.
+        expect(mockRunner.killedPids, isNot(contains(100)));
+        expect(mockRunner.killedPids, isNot(contains(200)));
+        expect(fresh.getState('test-svc'), ProcState.running);
+
+        fresh.dispose();
+      });
+
+      test('does nothing when no residual processes found', () async {
+        final cwdDir = Directory('${tmpDir.path}/app');
+        cwdDir.createSync(recursive: true);
+
+        writeConfig(tmpDir, _testConfig(
+          cwd: cwdDir.path,
+          cleanupCwd: true,
+        ));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        // No PIDs in pidsByCwd — empty cwd.
+        mockRunner.nextHandle = MockProcessHandle(pid: 300);
+
+        await fresh.start('test-svc');
+
+        // No kills, no errors.
+        expect(mockRunner.killedPids, isEmpty);
+        expect(fresh.getState('test-svc'), ProcState.running);
+
+        fresh.dispose();
+      });
+
+      test('skips cleanup when cwd is null (even if cleanup_cwd is true)',
+          () async {
+        writeConfig(tmpDir, _testConfig(
+          cwd: null,
+          cleanupCwd: true,
+        ));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        mockRunner.nextHandle = MockProcessHandle(pid: 300);
+
+        // Should not throw — cleanup is skipped when cwd is null.
+        await fresh.start('test-svc');
+
+        expect(mockRunner.killedPids, isEmpty);
+        expect(fresh.getState('test-svc'), ProcState.running);
+
+        fresh.dispose();
+      });
+
+      test('emits system message with kill count', () async {
+        final cwdDir = Directory('${tmpDir.path}/app');
+        cwdDir.createSync(recursive: true);
+
+        writeConfig(tmpDir, _testConfig(
+          cwd: cwdDir.path,
+          cleanupCwd: true,
+        ));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        mockRunner.pidsByCwd.addAll([10, 20, 30]);
+        mockRunner.nextHandle = MockProcessHandle(pid: 40);
+
+        final output = <String>[];
+        fresh.outputStream('test-svc').listen(output.add);
+
+        await fresh.start('test-svc');
+
+        expect(
+          output.any((l) =>
+              l.contains('[TrayForge]') && l.contains('killed 3 residual')),
+          isTrue,
+        );
 
         fresh.dispose();
       });

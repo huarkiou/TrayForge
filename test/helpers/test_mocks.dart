@@ -79,6 +79,7 @@ class MockProcessRunner implements IProcessRunner {
   final Set<int> alivePids = {};
   final List<int> killedPids = [];
   bool killPidResult = true;
+  final Set<int> pidsByCwd = {}; // PIDs returned by findPidsByCwd
 
   /// Enqueue handles for successive start() calls. Falls back to
   /// [nextHandle] when the queue is exhausted.
@@ -133,6 +134,11 @@ class MockProcessRunner implements IProcessRunner {
     // Simulate: after kill, the PID is no longer alive.
     alivePids.remove(pid);
     return killPidResult;
+  }
+
+  @override
+  Future<Set<int>> findPidsByCwd(String cwd) async {
+    return pidsByCwd.toSet();
   }
 }
 
