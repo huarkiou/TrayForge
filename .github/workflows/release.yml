@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v0.7.0)"
+        required: true
+        type: string
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate version format
+        run: |
+          V="${{ inputs.version }}"
+          if [[ ! "$V" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Error: version must be vX.Y.Z or vX.Y.Z-<pre> (e.g. v0.7.0), got: $V"
+            exit 1
+          fi
+
+  changelog:
+    needs: validate
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.gen.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: gen
+        run: |
+          TAG="${{ inputs.version }}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          echo "## Changes in $TAG" > CHANGELOG.md
+
+          group() {
+            local title="$1"; shift
+            local lines=$(git log --no-merges --format="- %s (%h)" "$@" 2>/dev/null || true)
+            if [ -n "$lines" ]; then
+              echo "### $title" >> CHANGELOG.md
+              echo "$lines" >> CHANGELOG.md
+              echo "" >> CHANGELOG.md
+            fi
+          }
+
+          PREV_TAG=$(git tag --sort=-v:refname 2>/dev/null | grep -E '^v[0-9]' | head -1 || true)
+          RANGE="${PREV_TAG:+$PREV_TAG..HEAD}"
+
+          group "Features" $RANGE --grep="^feat"
+          group "Fixes" $RANGE --grep="^fix"
+          group "Other" $RANGE -E --grep="^(chore|docs|ci|refactor|build)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: CHANGELOG.md
+
+  release:
+    needs: changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: changelog }
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.changelog.outputs.tag }}
+          name: TrayForge ${{ needs.changelog.outputs.tag }}
+          body_path: CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -98,81 +98,87 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
             _toggleSearch,
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: ListenableBuilder(
-          listenable: _vm,
-          builder: (context, _) => Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              StatusDot(state: _vm.state),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  _vm.name,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          ListenableBuilder(
+        appBar: AppBar(
+          title: ListenableBuilder(
             listenable: _vm,
-            builder: (context, _) {
-              final children = <Widget>[];
-              if (_vm.webuiUrl != null) {
-                children.add(IconButton(
-                  icon: const Icon(Icons.content_copy),
-                  tooltip: 'Copy WebUI URL',
-                  onPressed: () {
-                    Clipboard.setData(
-                      ClipboardData(text: _vm.webuiUrl.toString()),
-                    );
-                    showCopySnackBar(context);
-                  },
-                ));
-              }
-              children.add(IconButton(
-                icon: const Icon(Icons.delete_sweep),
-                tooltip: 'Clear output',
-                onPressed: () => _vm.clearOutput(),
-              ));
-              children.add(IconButton(
-                icon: Icon(
-                  _searchVisible ? Icons.search_off : Icons.search,
+            builder: (context, _) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StatusDot(state: _vm.state),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(_vm.name, overflow: TextOverflow.ellipsis),
                 ),
-                tooltip: _searchVisible ? 'Close search' : 'Search output',
-                onPressed: _toggleSearch,
-              ));
-              children.add(ToggleButton(viewModel: _vm));
-              return Row(mainAxisSize: MainAxisSize.min, children: children);
-            },
+              ],
+            ),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (_searchVisible)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Filter output...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () => _searchController.clear(),
+          actions: [
+            ListenableBuilder(
+              listenable: _vm,
+              builder: (context, _) {
+                final children = <Widget>[];
+                if (_vm.webuiUrl != null) {
+                  children.add(
+                    IconButton(
+                      icon: const Icon(Icons.content_copy),
+                      tooltip: 'Copy WebUI URL',
+                      onPressed: () {
+                        Clipboard.setData(
+                          ClipboardData(text: _vm.webuiUrl.toString()),
+                        );
+                        showCopySnackBar(context);
+                      },
+                    ),
+                  );
+                }
+                children.add(
+                  IconButton(
+                    icon: const Icon(Icons.delete_sweep),
+                    tooltip: 'Clear output',
+                    onPressed: () => _vm.clearOutput(),
                   ),
-                  border: const OutlineInputBorder(),
-                  isDense: true,
+                );
+                children.add(
+                  IconButton(
+                    icon: Icon(
+                      _searchVisible ? Icons.search_off : Icons.search,
+                    ),
+                    tooltip: _searchVisible ? 'Close search' : 'Search output',
+                    onPressed: _toggleSearch,
+                  ),
+                );
+                children.add(ToggleButton(viewModel: _vm));
+                return Row(mainAxisSize: MainAxisSize.min, children: children);
+              },
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            if (_searchVisible)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Filter output...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () => _searchController.clear(),
+                    ),
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
                 ),
               ),
-            ),
-          Expanded(child: _buildOutputBody()),
-        ],
-      ),
+            Expanded(child: _buildOutputBody()),
+          ],
+        ),
       ),
     );
   }
@@ -185,8 +191,8 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
         final filtered = _searchText.isEmpty
             ? lines
             : lines
-                .where((line) => line.toLowerCase().contains(_searchText))
-                .toList();
+                  .where((line) => line.toLowerCase().contains(_searchText))
+                  .toList();
 
         if (filtered.isEmpty && _searchText.isNotEmpty) {
           return const Center(
@@ -199,10 +205,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
 
         if (filtered.isEmpty) {
           return const Center(
-            child: Text(
-              'No output yet',
-              style: TextStyle(color: Colors.grey),
-            ),
+            child: Text('No output yet', style: TextStyle(color: Colors.grey)),
           );
         }
 
@@ -222,5 +225,3 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
     );
   }
 }
-
-

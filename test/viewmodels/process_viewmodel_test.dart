@@ -124,10 +124,10 @@ void main() {
     });
 
     test('trims output buffer when exceeding history limit', () async {
-      writeConfig(tmpDir, _testConfig(
-        outputRefreshMs: 10,
-        outputHistoryLimit: 5,
-      ));
+      writeConfig(
+        tmpDir,
+        _testConfig(outputRefreshMs: 10, outputHistoryLimit: 5),
+      );
       final handle = MockProcessHandle(pid: 54);
       mockRunner.nextHandle = handle;
       manager = createManager();
@@ -155,10 +155,10 @@ void main() {
     // ---- WebUI detection ----
 
     test('detects WebUI URL from ProcessManager events', () async {
-      writeConfig(tmpDir, _testConfig(
-        outputRefreshMs: 10,
-        webuiPattern: r'(http://[\d.:]+)',
-      ));
+      writeConfig(
+        tmpDir,
+        _testConfig(outputRefreshMs: 10, webuiPattern: r'(http://[\d.:]+)'),
+      );
       final handle = MockProcessHandle(pid: 55);
       mockRunner.nextHandle = handle;
       manager = createManager();
@@ -179,22 +179,25 @@ void main() {
     });
 
     test('ignores WebUI events for other processes', () async {
-      writeConfig(tmpDir, AppConfig(
-        outputRefreshMs: 10,
-        outputHistoryLimit: 100,
-        processes: [
-          const ProcessConfig(
-            name: 'svc-a',
-            cmd: 'a.exe',
-            webuiPattern: r'(http://[\d.:]+)',
-          ),
-          const ProcessConfig(
-            name: 'svc-b',
-            cmd: 'b.exe',
-            webuiPattern: r'(http://[\d.:]+)',
-          ),
-        ],
-      ));
+      writeConfig(
+        tmpDir,
+        AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            const ProcessConfig(
+              name: 'svc-a',
+              cmd: 'a.exe',
+              webuiPattern: r'(http://[\d.:]+)',
+            ),
+            const ProcessConfig(
+              name: 'svc-b',
+              cmd: 'b.exe',
+              webuiPattern: r'(http://[\d.:]+)',
+            ),
+          ],
+        ),
+      );
       manager = createManager();
 
       final vmB = ProcessViewModel(
@@ -314,10 +317,7 @@ void main() {
         outputHistoryLimit: 100,
       );
 
-      expect(
-        () => vm.outputLines.add('test'),
-        throwsUnsupportedError,
-      );
+      expect(() => vm.outputLines.add('test'), throwsUnsupportedError);
     });
   });
 }

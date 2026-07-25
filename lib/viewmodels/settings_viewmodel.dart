@@ -27,9 +27,9 @@ class SettingsViewModel extends ChangeNotifier {
     required ConfigStore configStore,
     required ProcessManager processManager,
     required Autostart autostart,
-  })  : _configStore = configStore,
-        _processManager = processManager,
-        _autostart = autostart {
+  }) : _configStore = configStore,
+       _processManager = processManager,
+       _autostart = autostart {
     _reload();
     _configSub = configStore.configChanged.listen((_) => _reload());
   }

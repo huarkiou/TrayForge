@@ -31,9 +31,7 @@ void main() {
         final config = AppConfig(
           outputHistoryLimit: 500,
           outputRefreshMs: 200,
-          processes: [
-            ProcessConfig(name: 'app', cmd: 'run.exe'),
-          ],
+          processes: [ProcessConfig(name: 'app', cmd: 'run.exe')],
         );
         _writeConfig(tmpDir, config);
 
@@ -101,8 +99,9 @@ void main() {
 
       test('on type error (not a map), backs up and returns null', () {
         final configPath = '${tmpDir.path}/config.json';
-        File(configPath).writeAsStringSync('["just", "an", "array"]',
-            flush: true);
+        File(
+          configPath,
+        ).writeAsStringSync('["just", "an", "array"]', flush: true);
 
         final result = store.load();
         expect(result, isNull);
@@ -122,9 +121,7 @@ void main() {
     group('save', () {
       test('writes config to config.json with indented JSON', () {
         final config = AppConfig(
-          processes: [
-            ProcessConfig(name: 'test', cmd: 'echo'),
-          ],
+          processes: [ProcessConfig(name: 'test', cmd: 'echo')],
         );
 
         store.save(config);
@@ -180,8 +177,7 @@ void main() {
 
       test('creates data directory if it does not exist', () {
         final nested = '${tmpDir.path}/nested/sub';
-        final nestedStore =
-            ConfigStore(dataDir: nested, maxBackupBytes: 300);
+        final nestedStore = ConfigStore(dataDir: nested, maxBackupBytes: 300);
 
         nestedStore.save(AppConfig());
         expect(File('$nested/config.json').existsSync(), isTrue);
@@ -191,14 +187,18 @@ void main() {
 
       test('backs up existing config before overwriting', () {
         // First save
-        store.save(AppConfig(processes: [
-          ProcessConfig(name: 'first', cmd: 'f'),
-        ]));
+        store.save(
+          AppConfig(
+            processes: [ProcessConfig(name: 'first', cmd: 'f')],
+          ),
+        );
 
         // Second save
-        store.save(AppConfig(processes: [
-          ProcessConfig(name: 'second', cmd: 's'),
-        ]));
+        store.save(
+          AppConfig(
+            processes: [ProcessConfig(name: 'second', cmd: 's')],
+          ),
+        );
 
         // Check backup exists
         final backupsDir = Directory('${tmpDir.path}/backups');
@@ -214,8 +214,9 @@ void main() {
         expect(backupContent, contains('"name": "first"'));
 
         // Current config should be the second
-        final currentContent =
-            File('${tmpDir.path}/config.json').readAsStringSync();
+        final currentContent = File(
+          '${tmpDir.path}/config.json',
+        ).readAsStringSync();
         expect(currentContent, contains('"name": "second"'));
       });
 
@@ -235,9 +236,11 @@ void main() {
 
       test('multiple saves create sequential backup files', () {
         for (var i = 0; i < 3; i++) {
-          store.save(AppConfig(processes: [
-            ProcessConfig(name: 'v$i', cmd: 'c$i'),
-          ]));
+          store.save(
+            AppConfig(
+              processes: [ProcessConfig(name: 'v$i', cmd: 'c$i')],
+            ),
+          );
         }
 
         final backupsDir = Directory('${tmpDir.path}/backups');
@@ -257,50 +260,62 @@ void main() {
     // ---- prune ----
 
     group('prune', () {
-      test('deletes oldest backups when backups dir exceeds maxBackupBytes',
-          () {
-        final tinyStore =
-            ConfigStore(dataDir: tmpDir.path, maxBackupBytes: 200);
+      test(
+        'deletes oldest backups when backups dir exceeds maxBackupBytes',
+        () {
+          final tinyStore = ConfigStore(
+            dataDir: tmpDir.path,
+            maxBackupBytes: 200,
+          );
 
-        // Create a backup directory so _backupExisting finds something
-        final backupsDir = Directory('${tmpDir.path}/backups');
-        backupsDir.createSync(recursive: true);
+          // Create a backup directory so _backupExisting finds something
+          final backupsDir = Directory('${tmpDir.path}/backups');
+          backupsDir.createSync(recursive: true);
 
-        // Manually create backup files — oldest first by name
-        File('${backupsDir.path}/config.20200101_000000.json')
-            .writeAsStringSync('x' * 150, flush: true);
-        File('${backupsDir.path}/config.20200101_000001.json')
-            .writeAsStringSync('x' * 120, flush: true);
+          // Manually create backup files — oldest first by name
+          File(
+            '${backupsDir.path}/config.20200101_000000.json',
+          ).writeAsStringSync('x' * 150, flush: true);
+          File(
+            '${backupsDir.path}/config.20200101_000001.json',
+          ).writeAsStringSync('x' * 120, flush: true);
 
-        // Also create a current config so save() backs up
-        _writeConfig(tmpDir, AppConfig(processes: [
-          ProcessConfig(name: 'x', cmd: 'x'),
-        ]));
+          // Also create a current config so save() backs up
+          _writeConfig(
+            tmpDir,
+            AppConfig(
+              processes: [ProcessConfig(name: 'x', cmd: 'x')],
+            ),
+          );
 
-        // Total is 270 which exceeds 200. Save should prune oldest.
-        tinyStore.save(AppConfig(processes: [
-          ProcessConfig(name: 'y', cmd: 'y'),
-        ]));
+          // Total is 270 which exceeds 200. Save should prune oldest.
+          tinyStore.save(
+            AppConfig(
+              processes: [ProcessConfig(name: 'y', cmd: 'y')],
+            ),
+          );
 
-        // Oldest backup (20200101_000000) should be deleted
-        expect(
-          File('${backupsDir.path}/config.20200101_000000.json')
-              .existsSync(),
-          isFalse,
-        );
+          // Oldest backup (20200101_000000) should be deleted
+          expect(
+            File('${backupsDir.path}/config.20200101_000000.json').existsSync(),
+            isFalse,
+          );
 
-        // Remaining should be <= 200
-        final remaining = backupsDir
-            .listSync()
-            .whereType<File>()
-            .where((f) => !f.path.contains('.corrupted'))
-            .toList();
-        final totalSize =
-            remaining.fold<int>(0, (sum, f) => sum + f.lengthSync());
-        expect(totalSize, lessThanOrEqualTo(200));
+          // Remaining should be <= 200
+          final remaining = backupsDir
+              .listSync()
+              .whereType<File>()
+              .where((f) => !f.path.contains('.corrupted'))
+              .toList();
+          final totalSize = remaining.fold<int>(
+            0,
+            (sum, f) => sum + f.lengthSync(),
+          );
+          expect(totalSize, lessThanOrEqualTo(200));
 
-        tinyStore.dispose();
-      });
+          tinyStore.dispose();
+        },
+      );
 
       test('no-op when backups dir does not exist', () {
         // Save without any existing config → no backups dir
@@ -315,56 +330,67 @@ void main() {
       test('rejects name containing forward slash', () {
         expect(
           () => store.validate(ProcessConfig(name: 'a/b', cmd: 'c')),
-          throwsA(isA<ArgumentError>().having(
-            (e) => e.message,
-            'message',
-            contains('/'),
-          )),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('/'),
+            ),
+          ),
         );
       });
 
       test('rejects empty name', () {
         expect(
           () => store.validate(ProcessConfig(name: '', cmd: 'c')),
-          throwsA(isA<ArgumentError>().having(
-            (e) => e.message,
-            'message',
-            contains('empty'),
-          )),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('empty'),
+            ),
+          ),
         );
       });
 
       test('rejects whitespace-only name', () {
         expect(
           () => store.validate(ProcessConfig(name: '   ', cmd: 'c')),
-          throwsA(isA<ArgumentError>().having(
-            (e) => e.message,
-            'message',
-            contains('empty'),
-          )),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('empty'),
+            ),
+          ),
         );
       });
 
       test('rejects name containing backslash', () {
         expect(
           () => store.validate(ProcessConfig(name: r'a\b', cmd: 'c')),
-          throwsA(isA<ArgumentError>().having(
-            (e) => e.message,
-            'message',
-            contains(r'\'),
-          )),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains(r'\'),
+            ),
+          ),
         );
       });
 
       test('rejects invalid webui_pattern regex', () {
         expect(
-          () => store.validate(ProcessConfig(
-              name: 'valid', cmd: 'c', webuiPattern: '[unclosed')),
-          throwsA(isA<ArgumentError>().having(
-            (e) => e.message,
-            'message',
-            contains('webui_pattern'),
-          )),
+          () => store.validate(
+            ProcessConfig(name: 'valid', cmd: 'c', webuiPattern: '[unclosed'),
+          ),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('webui_pattern'),
+            ),
+          ),
         );
       });
 
@@ -384,8 +410,13 @@ void main() {
 
       test('accepts valid webuiPattern regex', () {
         expect(
-          () => store.validate(ProcessConfig(
-              name: 'web', cmd: 'run', webuiPattern: r'http://[\d.:]+')),
+          () => store.validate(
+            ProcessConfig(
+              name: 'web',
+              cmd: 'run',
+              webuiPattern: r'http://[\d.:]+',
+            ),
+          ),
           returnsNormally,
         );
       });
@@ -398,17 +429,21 @@ void main() {
         final events = <void>[];
         final sub = store.configChanged.listen((_) => events.add(null));
 
-        store.save(AppConfig(processes: [
-          ProcessConfig(name: 'a', cmd: 'a'),
-        ]));
+        store.save(
+          AppConfig(
+            processes: [ProcessConfig(name: 'a', cmd: 'a')],
+          ),
+        );
 
         // Allow microtask to process
         await Future<void>.delayed(Duration.zero);
         expect(events.length, 1);
 
-        store.save(AppConfig(processes: [
-          ProcessConfig(name: 'b', cmd: 'b'),
-        ]));
+        store.save(
+          AppConfig(
+            processes: [ProcessConfig(name: 'b', cmd: 'b')],
+          ),
+        );
 
         await Future<void>.delayed(Duration.zero);
         expect(events.length, 2);

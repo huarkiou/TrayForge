@@ -185,9 +185,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final processes = _vm.processes;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: Column(
         children: [
           _buildGlobalSettings(context),
@@ -202,8 +200,10 @@ class _SettingsPageState extends State<SettingsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                Text('Processes',
-                    style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'Processes',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ],
             ),
           ),

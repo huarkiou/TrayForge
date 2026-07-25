@@ -87,9 +87,9 @@ void main() {
     test('rebuilds when configChanged fires', () async {
       writeConfig(
         tmpDir,
-        AppConfig(processes: [
-          const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-        ]),
+        AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
       );
       final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
@@ -101,10 +101,14 @@ void main() {
       expect(vm.processViewModels.length, 1);
 
       // Save new config with additional process.
-      configStore2.save(AppConfig(processes: [
-        const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-        const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
-      ]));
+      configStore2.save(
+        AppConfig(
+          processes: [
+            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
 
       // ConfigStore broadcasts asynchronously.
       await Future.delayed(Duration.zero);
@@ -116,9 +120,9 @@ void main() {
     test('switches to empty when config removes all processes', () async {
       writeConfig(
         tmpDir,
-        AppConfig(processes: [
-          const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-        ]),
+        AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
       );
       final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
@@ -177,9 +181,9 @@ void main() {
     test('dispose disposes child view models', () {
       writeConfig(
         tmpDir,
-        AppConfig(processes: [
-          const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-        ]),
+        AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
       );
       final configStore2 = ConfigStore(dataDir: tmpDir.path);
 

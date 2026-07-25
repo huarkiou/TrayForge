@@ -4,14 +4,7 @@ library;
 import 'package:flutter/material.dart';
 
 /// The lifecycle state of a managed process.
-enum ProcState {
-  stopped,
-  starting,
-  running,
-  stopping,
-  crashed,
-  cooldown,
-}
+enum ProcState { stopped, starting, running, stopping, crashed, cooldown }
 
 /// Extension on [ProcState] providing derived semantics.
 extension ProcStateX on ProcState {
@@ -19,7 +12,8 @@ extension ProcStateX on ProcState {
   bool get isActive => this == ProcState.running || this == ProcState.starting;
 
   /// Whether the process is in a terminal (non-transitioning) state.
-  bool get isTerminal => this != ProcState.starting && this != ProcState.stopping;
+  bool get isTerminal =>
+      this != ProcState.starting && this != ProcState.stopping;
 
   /// Returns a colour representing the process state.
   Color get statusColor {
@@ -66,18 +60,18 @@ class ProcessConfig {
   });
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        if (cwd != null) 'cwd': cwd,
-        'cmd': cmd,
-        if (encoding != null) 'encoding': encoding,
-        'singleton': singleton,
-        'autostart': autostart,
-        if (webuiPattern != null) 'webui_pattern': webuiPattern,
-        'delete_before_start': deleteBeforeStart,
-        if (maxRestarts != null) 'max_restarts': maxRestarts,
-        if (env != null) 'env': env,
-        'cleanup_cwd': cleanupCwd,
-      };
+    'name': name,
+    if (cwd != null) 'cwd': cwd,
+    'cmd': cmd,
+    if (encoding != null) 'encoding': encoding,
+    'singleton': singleton,
+    'autostart': autostart,
+    if (webuiPattern != null) 'webui_pattern': webuiPattern,
+    'delete_before_start': deleteBeforeStart,
+    if (maxRestarts != null) 'max_restarts': maxRestarts,
+    if (env != null) 'env': env,
+    'cleanup_cwd': cleanupCwd,
+  };
 
   factory ProcessConfig.fromJson(Map<String, dynamic> json) {
     return ProcessConfig(
@@ -178,19 +172,18 @@ class AppConfig {
   }
 
   Map<String, dynamic> toJson() => {
-        'output_history_limit': outputHistoryLimit,
-        'output_refresh_ms': outputRefreshMs,
-        'processes': processes.map((p) => p.toJson()).toList(),
-      };
+    'output_history_limit': outputHistoryLimit,
+    'output_refresh_ms': outputRefreshMs,
+    'processes': processes.map((p) => p.toJson()).toList(),
+  };
 
   factory AppConfig.fromJson(Map<String, dynamic> json) {
     return AppConfig(
-      outputHistoryLimit:
-          json['output_history_limit'] as int? ?? 1000,
+      outputHistoryLimit: json['output_history_limit'] as int? ?? 1000,
       outputRefreshMs: json['output_refresh_ms'] as int? ?? 500,
-      processes: (json['processes'] as List<dynamic>?)
-              ?.map((e) =>
-                  ProcessConfig.fromJson(e as Map<String, dynamic>))
+      processes:
+          (json['processes'] as List<dynamic>?)
+              ?.map((e) => ProcessConfig.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
     );

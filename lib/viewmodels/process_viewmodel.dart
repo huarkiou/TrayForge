@@ -32,8 +32,8 @@ class ProcessViewModel extends ChangeNotifier {
     required this.name,
     required ProcessManager processManager,
     required int outputHistoryLimit,
-  })  : _processManager = processManager,
-        _outputHistoryLimit = outputHistoryLimit {
+  }) : _processManager = processManager,
+       _outputHistoryLimit = outputHistoryLimit {
     _state = processManager.getState(name);
 
     _stateSub = processManager.stateStream(name).listen(_onState);

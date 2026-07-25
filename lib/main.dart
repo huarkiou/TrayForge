@@ -41,11 +41,7 @@ Future<void> main() async {
 
   // Configure window before showing anything.
   await windowManager.waitUntilReadyToShow(
-    const WindowOptions(
-      title: 'trayforge',
-      size: Size(800, 600),
-      center: true,
-    ),
+    const WindowOptions(title: 'trayforge', size: Size(800, 600), center: true),
   );
 
   // ---- Services ----
@@ -67,10 +63,7 @@ Future<void> main() async {
   final config = _configStore.load();
   final configCorrupted = configExists && config == null;
 
-  _processManager = ProcessManager(
-    configStore: _configStore,
-    logger: _logger,
-  );
+  _processManager = ProcessManager(configStore: _configStore, logger: _logger);
 
   _autostart = Autostart(logger: _logger);
 
@@ -190,9 +183,11 @@ Future<void> _exitApp() async {
 
 void _onTrayStateChanged() {
   // Fire-and-forget: update tray icon and menu when state changes.
-  trayManager.setIcon(_trayViewModel.iconPath)
+  trayManager
+      .setIcon(_trayViewModel.iconPath)
       .catchError((e) => _logger.log('Tray setIcon failed: $e'));
-  trayManager.setContextMenu(_trayViewModel.buildMenu())
+  trayManager
+      .setContextMenu(_trayViewModel.buildMenu())
       .catchError((e) => _logger.log('Tray setContextMenu failed: $e'));
 }
 
@@ -224,7 +219,8 @@ class _AppTrayListener extends TrayListener {
     final last = _lastMouseDown;
     _lastMouseDown = now;
 
-    if (last != null && now.difference(last) < const Duration(milliseconds: 400)) {
+    if (last != null &&
+        now.difference(last) < const Duration(milliseconds: 400)) {
       _showDashboard();
     }
   }

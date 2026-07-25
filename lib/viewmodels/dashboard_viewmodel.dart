@@ -29,9 +29,9 @@ class DashboardViewModel extends ChangeNotifier {
     required ConfigStore configStore,
     required ProcessManager processManager,
     bool configCorrupted = false,
-  })  : _configStore = configStore,
-        _processManager = processManager,
-        _configCorrupted = configCorrupted {
+  }) : _configStore = configStore,
+       _processManager = processManager,
+       _configCorrupted = configCorrupted {
     _rebuild();
     _configSub = configStore.configChanged.listen((_) => _rebuild());
   }
@@ -61,11 +61,13 @@ class DashboardViewModel extends ChangeNotifier {
     final processes = config?.processes ?? <ProcessConfig>[];
 
     for (final proc in processes) {
-      _processViewModels.add(ProcessViewModel(
-        name: proc.name,
-        processManager: _processManager,
-        outputHistoryLimit: config?.outputHistoryLimit ?? 1000,
-      ));
+      _processViewModels.add(
+        ProcessViewModel(
+          name: proc.name,
+          processManager: _processManager,
+          outputHistoryLimit: config?.outputHistoryLimit ?? 1000,
+        ),
+      );
     }
 
     notifyListeners();

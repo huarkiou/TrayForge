@@ -12,11 +12,8 @@ class Logger {
   final int maxBytes;
   final int maxBackups;
 
-  Logger({
-    String? logPath,
-    this.maxBytes = 1024 * 1024,
-    this.maxBackups = 3,
-  }) : logPath = logPath ?? p.join(getDataDir(), 'logs', 'trayforge.log');
+  Logger({String? logPath, this.maxBytes = 1024 * 1024, this.maxBackups = 3})
+    : logPath = logPath ?? p.join(getDataDir(), 'logs', 'trayforge.log');
 
   /// Resolves the trayforge data directory.
   ///
@@ -46,7 +43,7 @@ class Logger {
     // Linux / macOS
     final xdgDataHome = Platform.environment['XDG_DATA_HOME'];
     if (xdgDataHome != null && xdgDataHome.isNotEmpty) {
-        return p.join(xdgDataHome, 'trayforge');
+      return p.join(xdgDataHome, 'trayforge');
     }
 
     final home = Platform.environment['HOME'];
@@ -72,8 +69,12 @@ class Logger {
     final entry = '[$timestamp] $message\n';
 
     final file = File(logPath);
-    file.writeAsStringSync(entry,
-        mode: FileMode.append, encoding: utf8, flush: true);
+    file.writeAsStringSync(
+      entry,
+      mode: FileMode.append,
+      encoding: utf8,
+      flush: true,
+    );
   }
 
   void _rotateIfNeeded() {

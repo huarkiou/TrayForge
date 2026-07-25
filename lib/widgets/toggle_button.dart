@@ -7,11 +7,7 @@ class ToggleButton extends StatelessWidget {
   final ProcessViewModel viewModel;
   final VisualDensity? visualDensity;
 
-  const ToggleButton({
-    super.key,
-    required this.viewModel,
-    this.visualDensity,
-  });
+  const ToggleButton({super.key, required this.viewModel, this.visualDensity});
 
   @override
   Widget build(BuildContext context) {

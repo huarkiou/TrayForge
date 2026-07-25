@@ -89,7 +89,9 @@ class Autostart {
       ]);
       if (result.exitCode != 0) {
         final stderr = (result.stderr as String).trim();
-        logger?.log('Autostart: reg add failed (exit ${result.exitCode}): $stderr');
+        logger?.log(
+          'Autostart: reg add failed (exit ${result.exitCode}): $stderr',
+        );
       } else {
         logger?.log('Autostart: registry entry added ($exePath)');
       }
@@ -115,7 +117,8 @@ class Autostart {
       } else {
         final stderr = (result.stderr as String).trim();
         logger?.log(
-            'Autostart: reg delete failed (exit ${result.exitCode}): $stderr');
+          'Autostart: reg delete failed (exit ${result.exitCode}): $stderr',
+        );
       }
     } catch (e) {
       logger?.log('Autostart: error disabling autostart: $e');
@@ -150,7 +153,8 @@ class Autostart {
       final desktopDir = p.dirname(_desktopFilePath);
       await Directory(desktopDir).create(recursive: true);
 
-      final content = '''[Desktop Entry]
+      final content =
+          '''[Desktop Entry]
 Type=Application
 Name=trayforge
 Comment=trayforge system tray application

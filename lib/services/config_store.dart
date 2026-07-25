@@ -21,10 +21,8 @@ class ConfigStore {
   /// A stream that emits whenever the config is saved.
   Stream<void> get configChanged => _configChangedController.stream;
 
-  ConfigStore({
-    String? dataDir,
-    this.maxBackupBytes = 10 * 1024 * 1024,
-  }) : dataDir = dataDir ?? Logger.getDataDir();
+  ConfigStore({String? dataDir, this.maxBackupBytes = 10 * 1024 * 1024})
+    : dataDir = dataDir ?? Logger.getDataDir();
 
   String get _configPath => p.join(dataDir, 'config.json');
   String get _backupsDir => p.join(dataDir, 'backups');
@@ -102,9 +100,7 @@ class ConfigStore {
       try {
         RegExp(config.webuiPattern!);
       } on FormatException catch (e) {
-        throw ArgumentError(
-          'Invalid webui_pattern regex: ${e.message}',
-        );
+        throw ArgumentError('Invalid webui_pattern regex: ${e.message}');
       }
     }
   }

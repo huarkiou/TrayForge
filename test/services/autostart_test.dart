@@ -76,8 +76,9 @@ void main() {
         final desktopFile = File('${tmpDir.path}/trayforge.desktop');
         final content = desktopFile.readAsStringSync();
 
-        final execLine =
-            content.split('\n').firstWhere((l) => l.startsWith('Exec='));
+        final execLine = content
+            .split('\n')
+            .firstWhere((l) => l.startsWith('Exec='));
         final execPath = execLine.substring(5);
 
         // Should be a path that exists (the test runner or dart executable).

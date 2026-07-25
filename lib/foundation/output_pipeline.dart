@@ -1,9 +1,7 @@
 /// Utilities for processing process output lines.
 class OutputPipeline {
   /// Regex pattern for ANSI escape sequences (CSI sequences).
-  static final RegExp _ansiPattern = RegExp(
-    r'\x1B\[[0-?]*[ -/]*[@-~]',
-  );
+  static final RegExp _ansiPattern = RegExp(r'\x1B\[[0-?]*[ -/]*[@-~]');
 
   /// Strips ANSI escape codes from [line].
   static String stripAnsi(String line) {

@@ -16,11 +16,7 @@ class ProcessCard extends StatelessWidget {
   /// Number of output lines to display in the card body.
   static const int previewLines = 15;
 
-  const ProcessCard({
-    super.key,
-    required this.viewModel,
-    required this.onTap,
-  });
+  const ProcessCard({super.key, required this.viewModel, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -65,10 +61,7 @@ class _Header extends StatelessWidget {
         Expanded(
           child: Text(
             viewModel.name,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             overflow: TextOverflow.ellipsis,
           ),
         ),

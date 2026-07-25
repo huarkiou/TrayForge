@@ -95,16 +95,14 @@ class RealProcessRunner implements IProcessRunner {
   Future<bool> isProcessRunning(String executableName) async {
     try {
       if (Platform.isWindows) {
-        final result = await Process.run(
-          'tasklist',
-          ['/FI', 'IMAGENAME eq $executableName', '/NH'],
-        );
+        final result = await Process.run('tasklist', [
+          '/FI',
+          'IMAGENAME eq $executableName',
+          '/NH',
+        ]);
         return result.stdout.toString().contains(executableName);
       } else {
-        final result = await Process.run(
-          'pgrep',
-          ['-x', executableName],
-        );
+        final result = await Process.run('pgrep', ['-x', executableName]);
         return result.exitCode == 0;
       }
     } catch (_) {
@@ -116,16 +114,14 @@ class RealProcessRunner implements IProcessRunner {
   Future<bool> isPidAlive(int pid) async {
     try {
       if (Platform.isWindows) {
-        final result = await Process.run(
-          'tasklist',
-          ['/FI', 'PID eq $pid', '/NH'],
-        );
+        final result = await Process.run('tasklist', [
+          '/FI',
+          'PID eq $pid',
+          '/NH',
+        ]);
         return result.stdout.toString().contains(pid.toString());
       } else {
-        final result = await Process.run(
-          'kill',
-          ['-0', pid.toString()],
-        );
+        final result = await Process.run('kill', ['-0', pid.toString()]);
         return result.exitCode == 0;
       }
     } catch (_) {
@@ -138,11 +134,14 @@ class RealProcessRunner implements IProcessRunner {
     try {
       if (Platform.isWindows) {
         // wmic returns: CreationDate=20250101083015.123456+480
-        final result = await Process.run(
-          'wmic',
-          ['process', 'where', 'ProcessId=$pid', 'get', 'CreationDate',
-           '/format:csv'],
-        );
+        final result = await Process.run('wmic', [
+          'process',
+          'where',
+          'ProcessId=$pid',
+          'get',
+          'CreationDate',
+          '/format:csv',
+        ]);
         final output = result.stdout.toString();
         final match = RegExp(r'(\d{14})\.\d+').firstMatch(output);
         if (match != null) {
@@ -159,10 +158,12 @@ class RealProcessRunner implements IProcessRunner {
       } else {
         // /proc/<pid>/stat: field 22 is starttime in clock ticks since boot.
         // Simpler: `ps -o lstart= -p <pid>` returns "Mon Jan  1 08:30:15 2025".
-        final result = await Process.run(
-          'ps',
-          ['-o', 'lstart=', '-p', pid.toString()],
-        );
+        final result = await Process.run('ps', [
+          '-o',
+          'lstart=',
+          '-p',
+          pid.toString(),
+        ]);
         final output = result.stdout.toString().trim();
         if (output.isNotEmpty) {
           return DateTime.tryParse(output);
@@ -178,9 +179,12 @@ class RealProcessRunner implements IProcessRunner {
   Future<bool> killPid(int pid) async {
     try {
       if (Platform.isWindows) {
-        final result = await Process.run(
-          'taskkill', ['/t', '/f', '/pid', pid.toString()],
-        );
+        final result = await Process.run('taskkill', [
+          '/t',
+          '/f',
+          '/pid',
+          pid.toString(),
+        ]);
         return result.exitCode == 0;
       } else {
         await Process.run('pkill', ['-P', pid.toString()]);

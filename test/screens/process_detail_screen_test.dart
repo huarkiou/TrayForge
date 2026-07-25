@@ -20,15 +20,16 @@ class _FakeProcessManager extends Fake implements ProcessManager {
   Stream<ProcState> stateStream(String name) {
     return _stateControllers
         .putIfAbsent(
-            name, () => StreamController<ProcState>.broadcast(sync: true))
+          name,
+          () => StreamController<ProcState>.broadcast(sync: true),
+        )
         .stream;
   }
 
   @override
   Stream<String> outputStream(String name) {
     return _outputControllers
-        .putIfAbsent(
-            name, () => StreamController<String>.broadcast(sync: true))
+        .putIfAbsent(name, () => StreamController<String>.broadcast(sync: true))
         .stream;
   }
 
@@ -75,15 +76,16 @@ class _NoResolveFakeManager extends Fake implements ProcessManager {
   Stream<ProcState> stateStream(String name) {
     return _stateControllers
         .putIfAbsent(
-            name, () => StreamController<ProcState>.broadcast(sync: true))
+          name,
+          () => StreamController<ProcState>.broadcast(sync: true),
+        )
         .stream;
   }
 
   @override
   Stream<String> outputStream(String name) {
     return _outputControllers
-        .putIfAbsent(
-            name, () => StreamController<String>.broadcast(sync: true))
+        .putIfAbsent(name, () => StreamController<String>.broadcast(sync: true))
         .stream;
   }
 
@@ -123,9 +125,7 @@ void main() {
     });
 
     Widget buildPage() {
-      return MaterialApp(
-        home: ProcessDetailPage(viewModel: vm),
-      );
+      return MaterialApp(home: ProcessDetailPage(viewModel: vm));
     }
 
     // ---- Rendering ----
@@ -175,10 +175,12 @@ void main() {
       await tester.pump();
 
       expect(
-        find.byWidgetPredicate((w) =>
-            w is Container &&
-            w.decoration is BoxDecoration &&
-            (w.decoration as BoxDecoration).color == Colors.green),
+        find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).color == Colors.green,
+        ),
         findsOneWidget,
       );
     });
@@ -189,10 +191,12 @@ void main() {
       await tester.pump();
 
       expect(
-        find.byWidgetPredicate((w) =>
-            w is Container &&
-            w.decoration is BoxDecoration &&
-            (w.decoration as BoxDecoration).color == Colors.red),
+        find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).color == Colors.red,
+        ),
         findsOneWidget,
       );
     });
@@ -223,9 +227,9 @@ void main() {
         outputHistoryLimit: 100,
       );
 
-      await tester.pumpWidget(MaterialApp(
-        home: ProcessDetailPage(viewModel: vm2),
-      ));
+      await tester.pumpWidget(
+        MaterialApp(home: ProcessDetailPage(viewModel: vm2)),
+      );
 
       vm2.toggle();
       await tester.pump();
@@ -235,8 +239,7 @@ void main() {
 
     // ---- WebUI button ----
 
-    testWidgets('shows WebUI copy button when URL is detected',
-        (tester) async {
+    testWidgets('shows WebUI copy button when URL is detected', (tester) async {
       fakeManager.emitWebUi(
         WebUiEvent('test-svc', Uri.parse('http://127.0.0.1:8080')),
       );
@@ -303,8 +306,9 @@ void main() {
       expect(find.byType(TextField), findsNothing);
     });
 
-    testWidgets('search filters output lines case-insensitively',
-        (tester) async {
+    testWidgets('search filters output lines case-insensitively', (
+      tester,
+    ) async {
       fakeManager.emitOutput('test-svc', 'Hello World');
       fakeManager.emitOutput('test-svc', 'foo bar');
       fakeManager.emitOutput('test-svc', 'HELLO again');
@@ -351,14 +355,13 @@ void main() {
       await tester.pump();
 
       // Both visible again.
-      selectable = tester.widget<SelectableText>(
-        find.byType(SelectableText),
-      );
+      selectable = tester.widget<SelectableText>(find.byType(SelectableText));
       expect(selectable.data, contains('beta'));
     });
 
-    testWidgets('shows "No matching lines" when search finds nothing',
-        (tester) async {
+    testWidgets('shows "No matching lines" when search finds nothing', (
+      tester,
+    ) async {
       fakeManager.emitOutput('test-svc', 'hello');
       await tester.pumpWidget(buildPage());
       await tester.pump();
@@ -389,8 +392,9 @@ void main() {
       expect(selectable.data, contains('line 49'));
     });
 
-    testWidgets('scrolls to bottom on new output while at bottom',
-        (tester) async {
+    testWidgets('scrolls to bottom on new output while at bottom', (
+      tester,
+    ) async {
       for (var i = 0; i < 40; i++) {
         fakeManager.emitOutput('test-svc', 'line $i');
       }
@@ -412,8 +416,9 @@ void main() {
 
     // ---- Output preservation ----
 
-    testWidgets('output is preserved when view model is shared',
-        (tester) async {
+    testWidgets('output is preserved when view model is shared', (
+      tester,
+    ) async {
       // Pre-populate the view model with output.
       fakeManager.emitOutput('test-svc', 'persisted line');
       await tester.pumpWidget(buildPage());
@@ -422,9 +427,9 @@ void main() {
       expect(find.text('persisted line'), findsOneWidget);
 
       // Navigate away and back (simulated by rebuilding with same vm).
-      await tester.pumpWidget(MaterialApp(
-        home: const Scaffold(body: Text('other page')),
-      ));
+      await tester.pumpWidget(
+        MaterialApp(home: const Scaffold(body: Text('other page'))),
+      );
       await tester.pump();
 
       await tester.pumpWidget(buildPage());

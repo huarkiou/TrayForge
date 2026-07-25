@@ -154,17 +154,12 @@ void main() {
 
     group('copyWith', () {
       test('returns new instance with changed fields', () {
-        final original = ProcessConfig(
-          name: 'orig',
-          cwd: '/tmp',
-          cmd: 'cmd',
-        );
+        final original = ProcessConfig(name: 'orig', cwd: '/tmp', cmd: 'cmd');
         final copy = original.copyWith(name: 'new');
         expect(copy.name, 'new');
         expect(copy.cwd, '/tmp');
         expect(copy.cmd, 'cmd');
       });
-
     });
   });
 
@@ -177,9 +172,7 @@ void main() {
     });
 
     test('creates with custom values', () {
-      final processes = [
-        ProcessConfig(name: 'p1', cmd: 'c1'),
-      ];
+      final processes = [ProcessConfig(name: 'p1', cmd: 'c1')];
       final config = AppConfig(
         outputHistoryLimit: 500,
         outputRefreshMs: 50,
@@ -216,9 +209,7 @@ void main() {
         final config = AppConfig(
           outputHistoryLimit: 200,
           outputRefreshMs: 50,
-          processes: [
-            ProcessConfig(name: 'p1', cmd: 'c1'),
-          ],
+          processes: [ProcessConfig(name: 'p1', cmd: 'c1')],
         );
         final json = config.toJson();
         expect(json['output_history_limit'], 200);

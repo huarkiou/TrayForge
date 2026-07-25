@@ -14,15 +14,13 @@ import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 /// DashboardViewModel construction.
 class _FakeProcessManager extends Fake implements ProcessManager {
   @override
-  Stream<ProcState> stateStream(String name) =>
-      const Stream<ProcState>.empty();
+  Stream<ProcState> stateStream(String name) => const Stream<ProcState>.empty();
 
   @override
   Stream<String> outputStream(String name) => const Stream<String>.empty();
 
   @override
-  Stream<WebUiEvent> get onWebUiDetected =>
-      const Stream<WebUiEvent>.empty();
+  Stream<WebUiEvent> get onWebUiDetected => const Stream<WebUiEvent>.empty();
 
   @override
   ProcState getState(String name) => ProcState.stopped;
@@ -63,8 +61,9 @@ void main() {
       expect(find.text('Add Process'), findsOneWidget);
     });
 
-    testWidgets('welcome screen "Add Process" button navigates to settings',
-        (tester) async {
+    testWidgets('welcome screen "Add Process" button navigates to settings', (
+      tester,
+    ) async {
       final configStore = _FakeConfigStore(AppConfig(processes: []));
       final dm = DashboardViewModel(
         configStore: configStore,
@@ -93,12 +92,14 @@ void main() {
 
     testWidgets('shows process cards when processes exist', (tester) async {
       final vm = DashboardViewModel(
-        configStore: _FakeConfigStore(AppConfig(
-          processes: [
-            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
-          ],
-        )),
+        configStore: _FakeConfigStore(
+          AppConfig(
+            processes: [
+              const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+              const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+            ],
+          ),
+        ),
         processManager: _FakeProcessManager(),
       );
 
@@ -115,11 +116,11 @@ void main() {
 
     testWidgets('tapping a card navigates to detail page', (tester) async {
       final vm = DashboardViewModel(
-        configStore: _FakeConfigStore(AppConfig(
-          processes: [
-            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-          ],
-        )),
+        configStore: _FakeConfigStore(
+          AppConfig(
+            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          ),
+        ),
         processManager: _FakeProcessManager(),
       );
 
@@ -156,10 +157,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Configuration Error'), findsOneWidget);
-      expect(
-        find.textContaining('corrupted'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('corrupted'), findsOneWidget);
     });
 
     testWidgets('dismissing corrupted dialog clears flag', (tester) async {
@@ -187,13 +185,14 @@ void main() {
 
     // ---- Config changed → welcome screen ----
 
-    testWidgets('switches to welcome screen when config becomes empty',
-        (tester) async {
-      final configStore = _FakeConfigStore(AppConfig(
-        processes: [
-          const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-        ],
-      ));
+    testWidgets('switches to welcome screen when config becomes empty', (
+      tester,
+    ) async {
+      final configStore = _FakeConfigStore(
+        AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
 
       final vm = DashboardViewModel(
         configStore: configStore,

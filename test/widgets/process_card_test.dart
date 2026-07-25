@@ -18,7 +18,10 @@ class _FakeProcessManager extends Fake implements ProcessManager {
   @override
   Stream<ProcState> stateStream(String name) {
     return _stateControllers
-        .putIfAbsent(name, () => StreamController<ProcState>.broadcast(sync: true))
+        .putIfAbsent(
+          name,
+          () => StreamController<ProcState>.broadcast(sync: true),
+        )
         .stream;
   }
 
@@ -77,7 +80,10 @@ class _NoResolveFakeManager extends Fake implements ProcessManager {
   @override
   Stream<ProcState> stateStream(String name) {
     return _stateControllers
-        .putIfAbsent(name, () => StreamController<ProcState>.broadcast(sync: true))
+        .putIfAbsent(
+          name,
+          () => StreamController<ProcState>.broadcast(sync: true),
+        )
         .stream;
   }
 
@@ -127,10 +133,7 @@ void main() {
     Widget buildCard({VoidCallback? onTap}) {
       return MaterialApp(
         home: Scaffold(
-          body: ProcessCard(
-            viewModel: vm,
-            onTap: onTap ?? () {},
-          ),
+          body: ProcessCard(viewModel: vm, onTap: onTap ?? () {}),
         ),
       );
     }
@@ -154,8 +157,9 @@ void main() {
       await tester.pump();
 
       final text = tester.widget<Text>(
-        find.byWidgetPredicate((w) =>
-            w is Text && w.data != null && w.data!.contains('hello world')),
+        find.byWidgetPredicate(
+          (w) => w is Text && w.data != null && w.data!.contains('hello world'),
+        ),
       );
       expect(text.style?.fontFamily, 'monospace');
     });
@@ -169,8 +173,9 @@ void main() {
 
       // Should show last 15 lines.
       final text = tester.widget<Text>(
-        find.byWidgetPredicate((w) =>
-            w is Text && w.data != null && w.data!.startsWith('line ')),
+        find.byWidgetPredicate(
+          (w) => w is Text && w.data != null && w.data!.startsWith('line '),
+        ),
       );
       expect(text.data, contains('line 5'));
       expect(text.data, contains('line 19'));
@@ -184,10 +189,12 @@ void main() {
       await tester.pump();
 
       final dot = tester.widget<Container>(
-        find.byWidgetPredicate((w) =>
-            w is Container &&
-            w.decoration is BoxDecoration &&
-            (w.decoration as BoxDecoration).color == Colors.green),
+        find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).color == Colors.green,
+        ),
       );
       expect(dot, isNotNull);
     });
@@ -198,16 +205,19 @@ void main() {
       await tester.pump();
 
       final dot = tester.widget<Container>(
-        find.byWidgetPredicate((w) =>
-            w is Container &&
-            w.decoration is BoxDecoration &&
-            (w.decoration as BoxDecoration).color == Colors.red),
+        find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).color == Colors.red,
+        ),
       );
       expect(dot, isNotNull);
     });
 
-    testWidgets('shows grey dot for stopped/starting/stopping/cooldown',
-        (tester) async {
+    testWidgets('shows grey dot for stopped/starting/stopping/cooldown', (
+      tester,
+    ) async {
       for (final state in [
         ProcState.stopped,
         ProcState.starting,
@@ -219,10 +229,12 @@ void main() {
         await tester.pump();
 
         final dot = tester.widget<Container>(
-          find.byWidgetPredicate((w) =>
-              w is Container &&
-              w.decoration is BoxDecoration &&
-              (w.decoration as BoxDecoration).color == Colors.grey),
+          find.byWidgetPredicate(
+            (w) =>
+                w is Container &&
+                w.decoration is BoxDecoration &&
+                (w.decoration as BoxDecoration).color == Colors.grey,
+          ),
         );
         expect(dot, isNotNull, reason: 'Expected grey dot for $state');
       }
@@ -256,11 +268,13 @@ void main() {
         outputHistoryLimit: 100,
       );
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: ProcessCard(viewModel: vm2, onTap: () {}),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ProcessCard(viewModel: vm2, onTap: () {}),
+          ),
         ),
-      ));
+      );
 
       // Tap toggle to enter optimistic state. Since the fake never
       // emits a state change, the spinner should appear.

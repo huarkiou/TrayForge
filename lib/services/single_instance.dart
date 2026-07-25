@@ -37,8 +37,8 @@ class SingleInstance {
   String? _lockPath;
 
   SingleInstance({String? dataDir, this.logger, String? mutexName})
-      : dataDir = dataDir ?? Logger.getDataDir(),
-        _mutexName = mutexName ?? 'Local\\trayforge_SingleInstance';
+    : dataDir = dataDir ?? Logger.getDataDir(),
+      _mutexName = mutexName ?? 'Local\\trayforge_SingleInstance';
 
   // ---- public API ----
 
@@ -110,33 +110,39 @@ class SingleInstance {
 
   static const int _ERROR_ALREADY_EXISTS = 183;
 
-  static final DynamicLibrary _kernel32 =
-      DynamicLibrary.open('kernel32.dll');
+  static final DynamicLibrary _kernel32 = DynamicLibrary.open('kernel32.dll');
 
-  static final _CreateMutexW = _kernel32.lookupFunction<
-      IntPtr Function(Pointer<Void> lpMutexAttributes, Int32 bInitialOwner,
-          Pointer<Utf16> lpName),
-      int Function(Pointer<Void> lpMutexAttributes, int bInitialOwner,
-          Pointer<Utf16> lpName)>('CreateMutexW');
+  static final _CreateMutexW = _kernel32
+      .lookupFunction<
+        IntPtr Function(
+          Pointer<Void> lpMutexAttributes,
+          Int32 bInitialOwner,
+          Pointer<Utf16> lpName,
+        ),
+        int Function(
+          Pointer<Void> lpMutexAttributes,
+          int bInitialOwner,
+          Pointer<Utf16> lpName,
+        )
+      >('CreateMutexW');
 
-  static final _GetLastError =
-      _kernel32.lookupFunction<Int32 Function(), int Function()>(
-          'GetLastError');
+  static final _GetLastError = _kernel32
+      .lookupFunction<Int32 Function(), int Function()>('GetLastError');
 
-  static final _CloseHandle = _kernel32.lookupFunction<
-      Int32 Function(IntPtr hObject), int Function(int hObject)>(
-          'CloseHandle');
+  static final _CloseHandle = _kernel32
+      .lookupFunction<
+        Int32 Function(IntPtr hObject),
+        int Function(int hObject)
+      >('CloseHandle');
 
   bool _tryAcquireWindows() {
     try {
       final name = _mutexName.toNativeUtf16();
       try {
-        final handle = _CreateMutexW(
-            Pointer.fromAddress(0), 0, name);
+        final handle = _CreateMutexW(Pointer.fromAddress(0), 0, name);
         final lastError = _GetLastError();
         if (handle == 0) {
-          logger?.log(
-              'SingleInstance: CreateMutexW failed (error $lastError)');
+          logger?.log('SingleInstance: CreateMutexW failed (error $lastError)');
           return false; // fail closed
         }
         _mutexHandle = handle;
@@ -188,8 +194,9 @@ class SingleInstance {
         final content = lockFile.readAsStringSync().trim();
         final existingPid = int.parse(content);
         if (_processExists(existingPid)) {
-          logger
-              ?.log('SingleInstance: another instance running (pid $existingPid)');
+          logger?.log(
+            'SingleInstance: another instance running (pid $existingPid)',
+          );
           return false;
         }
         // Stale lock — process is gone.

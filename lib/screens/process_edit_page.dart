@@ -56,14 +56,17 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     _singleton = p?.singleton ?? false;
     _autostart = p?.autostart ?? false;
     _cleanupCwd = p?.cleanupCwd ?? false;
-    _webuiPatternController =
-        TextEditingController(text: p?.webuiPattern ?? '');
-    _deleteBeforeStartController =
-        TextEditingController(text: (p?.deleteBeforeStart ?? []).join('\n'));
-    _maxRestartsController =
-        TextEditingController(text: p?.maxRestarts?.toString() ?? '');
-    _envRows = (p?.env?.entries.map((e) => _EnvRow(e.key, e.value)).toList() ??
-        []);
+    _webuiPatternController = TextEditingController(
+      text: p?.webuiPattern ?? '',
+    );
+    _deleteBeforeStartController = TextEditingController(
+      text: (p?.deleteBeforeStart ?? []).join('\n'),
+    );
+    _maxRestartsController = TextEditingController(
+      text: p?.maxRestarts?.toString() ?? '',
+    );
+    _envRows =
+        (p?.env?.entries.map((e) => _EnvRow(e.key, e.value)).toList() ?? []);
   }
 
   @override
@@ -102,7 +105,10 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
       maxRestarts: int.tryParse(_maxRestartsController.text.trim()),
       env: _envRows.isEmpty
           ? null
-          : {for (final r in _envRows) r.keyController.text: r.valueController.text},
+          : {
+              for (final r in _envRows)
+                r.keyController.text: r.valueController.text,
+            },
     );
   }
 
@@ -296,7 +302,8 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
               value: _singleton,
               title: const Text('Singleton'),
               subtitle: const Text(
-                  'Prevent starting if a process with the same name is already running'),
+                'Prevent starting if a process with the same name is already running',
+              ),
               onChanged: (v) => setState(() => _singleton = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
@@ -304,7 +311,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             CheckboxListTile(
               value: _autostart,
               title: const Text('Autostart'),
-              subtitle: const Text('Start this process automatically on launch'),
+              subtitle: const Text(
+                'Start this process automatically on launch',
+              ),
               onChanged: (v) => setState(() => _autostart = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
@@ -313,7 +322,8 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
               value: _cleanupCwd,
               title: const Text('Cleanup CWD'),
               subtitle: const Text(
-                  'Kill residual processes from the same working directory before start'),
+                'Kill residual processes from the same working directory before start',
+              ),
               onChanged: (v) => setState(() => _cleanupCwd = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
@@ -348,9 +358,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             const SizedBox(height: 4),
             Text(
               'One file path per line, relative to working directory',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
             const SizedBox(height: 8),
             TextFormField(
@@ -431,8 +441,8 @@ class _EnvRow {
   final TextEditingController valueController;
 
   _EnvRow(String key, String value)
-      : keyController = TextEditingController(text: key),
-        valueController = TextEditingController(text: value);
+    : keyController = TextEditingController(text: key),
+      valueController = TextEditingController(text: value);
 
   void dispose() {
     keyController.dispose();

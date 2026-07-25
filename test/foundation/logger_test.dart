@@ -61,11 +61,7 @@ void main() {
     });
 
     test('rotates when file exceeds maxBytes', () {
-      final logger = Logger(
-        logPath: logPath,
-        maxBytes: 100,
-        maxBackups: 3,
-      );
+      final logger = Logger(logPath: logPath, maxBytes: 100, maxBackups: 3);
 
       // Write enough to exceed 100 bytes
       for (var i = 0; i < 20; i++) {
@@ -81,11 +77,7 @@ void main() {
     });
 
     test('rotates through all backup slots', () {
-      final logger = Logger(
-        logPath: logPath,
-        maxBytes: 10,
-        maxBackups: 2,
-      );
+      final logger = Logger(logPath: logPath, maxBytes: 10, maxBackups: 2);
 
       // Write many lines to trigger multiple rotations
       for (var i = 0; i < 100; i++) {

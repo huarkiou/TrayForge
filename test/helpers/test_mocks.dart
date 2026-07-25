@@ -95,13 +95,15 @@ class MockProcessRunner implements IProcessRunner {
     Map<String, String>? environment,
     bool runInShell = false,
   }) async {
-    starts.add(CapturedStart(
-      executable: executable,
-      arguments: arguments,
-      workingDirectory: workingDirectory,
-      environment: environment,
-      runInShell: runInShell,
-    ));
+    starts.add(
+      CapturedStart(
+        executable: executable,
+        arguments: arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
+        runInShell: runInShell,
+      ),
+    );
     if (throwOnStart != null) throw throwOnStart!;
     if (_handleQueue.isNotEmpty) return _handleQueue.removeAt(0);
     return nextHandle!;

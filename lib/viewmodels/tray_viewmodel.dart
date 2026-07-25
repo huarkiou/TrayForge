@@ -73,11 +73,13 @@ class TrayViewModel extends ChangeNotifier {
       final state = _states[name] ?? ProcState.stopped;
       final isRunning = state.isActive;
       final label = isRunning ? '\u2713 $name' : '   $name';
-      items.add(MenuItem(
-        key: 'proc:$name',
-        label: label,
-        onClick: (_) => _toggleProcess(name),
-      ));
+      items.add(
+        MenuItem(
+          key: 'proc:$name',
+          label: label,
+          onClick: (_) => _toggleProcess(name),
+        ),
+      );
     }
 
     if (items.isNotEmpty) {
@@ -85,21 +87,21 @@ class TrayViewModel extends ChangeNotifier {
     }
 
     // Fixed items
-    items.add(MenuItem(
-      key: 'reload',
-      label: 'Reload Settings',
-      onClick: (_) => _configStore.reload(),
-    ));
-    items.add(MenuItem(
-      key: 'dashboard',
-      label: 'Dashboard',
-      onClick: (_) => onShowDashboard(),
-    ));
-    items.add(MenuItem(
-      key: 'exit',
-      label: 'Exit',
-      onClick: (_) => onExit(),
-    ));
+    items.add(
+      MenuItem(
+        key: 'reload',
+        label: 'Reload Settings',
+        onClick: (_) => _configStore.reload(),
+      ),
+    );
+    items.add(
+      MenuItem(
+        key: 'dashboard',
+        label: 'Dashboard',
+        onClick: (_) => onShowDashboard(),
+      ),
+    );
+    items.add(MenuItem(key: 'exit', label: 'Exit', onClick: (_) => onExit()));
 
     return Menu(items: items);
   }

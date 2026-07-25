@@ -24,8 +24,7 @@ void main() {
         expect(si.tryAcquire(), isTrue);
       });
 
-      test('tryAcquire returns false when another instance holds the lock',
-          () {
+      test('tryAcquire returns false when another instance holds the lock', () {
         if (!Platform.isLinux) return;
 
         expect(si.tryAcquire(), isTrue);
@@ -67,8 +66,7 @@ void main() {
         if (!Platform.isLinux) return;
 
         // Write a lock file with a non-existent PID.
-        final lockFile =
-            File('${tmpDir.path}/instance.lock');
+        final lockFile = File('${tmpDir.path}/instance.lock');
         lockFile.writeAsStringSync('99999999', flush: true);
 
         expect(si.tryAcquire(), isTrue);
@@ -79,8 +77,7 @@ void main() {
       test('tryAcquire handles corrupted lock file', () {
         if (!Platform.isLinux) return;
 
-        final lockFile =
-            File('${tmpDir.path}/instance.lock');
+        final lockFile = File('${tmpDir.path}/instance.lock');
         lockFile.writeAsStringSync('not-a-number', flush: true);
 
         expect(si.tryAcquire(), isTrue);
@@ -101,25 +98,34 @@ void main() {
         }
       });
 
-      test('tryAcquire returns false when another instance holds the mutex',
-          () {
-        if (!Platform.isWindows) return;
+      test(
+        'tryAcquire returns false when another instance holds the mutex',
+        () {
+          if (!Platform.isWindows) return;
 
-        final mutexName = 'Local\\trayforge_Test_${DateTime.now().microsecondsSinceEpoch}';
-        final si1 = SingleInstance(dataDir: tmpDir.path, mutexName: mutexName);
-        try {
-          expect(si1.tryAcquire(), isTrue);
-
-          final si2 = SingleInstance(dataDir: tmpDir.path, mutexName: mutexName);
+          final mutexName =
+              'Local\\trayforge_Test_${DateTime.now().microsecondsSinceEpoch}';
+          final si1 = SingleInstance(
+            dataDir: tmpDir.path,
+            mutexName: mutexName,
+          );
           try {
-            expect(si2.tryAcquire(), isFalse);
+            expect(si1.tryAcquire(), isTrue);
+
+            final si2 = SingleInstance(
+              dataDir: tmpDir.path,
+              mutexName: mutexName,
+            );
+            try {
+              expect(si2.tryAcquire(), isFalse);
+            } finally {
+              si2.release();
+            }
           } finally {
-            si2.release();
+            si1.release();
           }
-        } finally {
-          si1.release();
-        }
-      });
+        },
+      );
 
       test('release is safe to call multiple times', () {
         if (!Platform.isWindows) return;
@@ -151,8 +157,7 @@ void main() {
       test('signalFirstInstance writes a wake signal', () {
         si.signalFirstInstance();
 
-        final signalFile =
-            File('${tmpDir.path}/wake_signal');
+        final signalFile = File('${tmpDir.path}/wake_signal');
         expect(signalFile.existsSync(), isTrue);
       });
 
@@ -163,8 +168,7 @@ void main() {
         // Signal is consumed.
         expect(si.checkForWakeSignal(), isFalse);
 
-        final signalFile =
-            File('${tmpDir.path}/wake_signal');
+        final signalFile = File('${tmpDir.path}/wake_signal');
         expect(signalFile.existsSync(), isFalse);
       });
 

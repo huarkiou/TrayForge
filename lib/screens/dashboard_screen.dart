@@ -15,7 +15,11 @@ class DashboardScreen extends StatefulWidget {
   final DashboardViewModel viewModel;
   final SettingsViewModel? settingsViewModel;
 
-  const DashboardScreen({super.key, required this.viewModel, this.settingsViewModel});
+  const DashboardScreen({
+    super.key,
+    required this.viewModel,
+    this.settingsViewModel,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -68,9 +72,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => SettingsPage(
-                      viewModel: widget.settingsViewModel!,
-                    ),
+                    builder: (_) =>
+                        SettingsPage(viewModel: widget.settingsViewModel!),
                   ),
                 );
               },
@@ -105,9 +108,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => SettingsPage(
-                      viewModel: widget.settingsViewModel!,
-                    ),
+                    builder: (_) =>
+                        SettingsPage(viewModel: widget.settingsViewModel!),
                   ),
                 );
               }
@@ -132,8 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) =>
-                    ProcessDetailPage(viewModel: vm),
+                builder: (_) => ProcessDetailPage(viewModel: vm),
               ),
             );
           },

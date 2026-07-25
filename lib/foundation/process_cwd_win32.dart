@@ -37,58 +37,66 @@ bool _ntSuccess(int status) => status >= 0;
 // FFI type aliases
 // ---------------------------------------------------------------------------
 
-typedef _OpenProcessC = IntPtr Function(
-    Uint32 dwDesiredAccess, Int32 bInheritHandle, Uint32 dwProcessId);
-typedef _OpenProcessDart = int Function(
-    int dwDesiredAccess, int bInheritHandle, int dwProcessId);
+typedef _OpenProcessC =
+    IntPtr Function(
+      Uint32 dwDesiredAccess,
+      Int32 bInheritHandle,
+      Uint32 dwProcessId,
+    );
+typedef _OpenProcessDart =
+    int Function(int dwDesiredAccess, int bInheritHandle, int dwProcessId);
 
-typedef _ReadProcessMemoryC = Int32 Function(
-  IntPtr hProcess,
-  IntPtr lpBaseAddress,
-  Pointer<Uint8> lpBuffer,
-  UintPtr nSize,
-  Pointer<UintPtr> lpNumberOfBytesRead,
-);
-typedef _ReadProcessMemoryDart = int Function(
-  int hProcess,
-  int lpBaseAddress,
-  Pointer<Uint8> lpBuffer,
-  int nSize,
-  Pointer<UintPtr> lpNumberOfBytesRead,
-);
+typedef _ReadProcessMemoryC =
+    Int32 Function(
+      IntPtr hProcess,
+      IntPtr lpBaseAddress,
+      Pointer<Uint8> lpBuffer,
+      UintPtr nSize,
+      Pointer<UintPtr> lpNumberOfBytesRead,
+    );
+typedef _ReadProcessMemoryDart =
+    int Function(
+      int hProcess,
+      int lpBaseAddress,
+      Pointer<Uint8> lpBuffer,
+      int nSize,
+      Pointer<UintPtr> lpNumberOfBytesRead,
+    );
 
 typedef _CloseHandleC = Int32 Function(IntPtr hObject);
 typedef _CloseHandleDart = int Function(int hObject);
 
-typedef _CreateToolhelp32SnapshotC = IntPtr Function(
-    Uint32 dwFlags, Uint32 th32ProcessID);
-typedef _CreateToolhelp32SnapshotDart = int Function(
-    int dwFlags, int th32ProcessID);
+typedef _CreateToolhelp32SnapshotC =
+    IntPtr Function(Uint32 dwFlags, Uint32 th32ProcessID);
+typedef _CreateToolhelp32SnapshotDart =
+    int Function(int dwFlags, int th32ProcessID);
 
-typedef _Process32FirstWC = Int32 Function(
-    IntPtr hSnapshot, Pointer<ProcessEntry32W> lppe);
-typedef _Process32FirstWDart = int Function(
-    int hSnapshot, Pointer<ProcessEntry32W> lppe);
+typedef _Process32FirstWC =
+    Int32 Function(IntPtr hSnapshot, Pointer<ProcessEntry32W> lppe);
+typedef _Process32FirstWDart =
+    int Function(int hSnapshot, Pointer<ProcessEntry32W> lppe);
 
-typedef _Process32NextWC = Int32 Function(
-    IntPtr hSnapshot, Pointer<ProcessEntry32W> lppe);
-typedef _Process32NextWDart = int Function(
-    int hSnapshot, Pointer<ProcessEntry32W> lppe);
+typedef _Process32NextWC =
+    Int32 Function(IntPtr hSnapshot, Pointer<ProcessEntry32W> lppe);
+typedef _Process32NextWDart =
+    int Function(int hSnapshot, Pointer<ProcessEntry32W> lppe);
 
-typedef _NtQueryInformationProcessC = Int32 Function(
-  IntPtr ProcessHandle,
-  Int32 ProcessInformationClass,
-  Pointer<Uint8> ProcessInformation,
-  Uint32 ProcessInformationLength,
-  Pointer<Uint32> ReturnLength,
-);
-typedef _NtQueryInformationProcessDart = int Function(
-  int ProcessHandle,
-  int ProcessInformationClass,
-  Pointer<Uint8> ProcessInformation,
-  int ProcessInformationLength,
-  Pointer<Uint32> ReturnLength,
-);
+typedef _NtQueryInformationProcessC =
+    Int32 Function(
+      IntPtr ProcessHandle,
+      Int32 ProcessInformationClass,
+      Pointer<Uint8> ProcessInformation,
+      Uint32 ProcessInformationLength,
+      Pointer<Uint32> ReturnLength,
+    );
+typedef _NtQueryInformationProcessDart =
+    int Function(
+      int ProcessHandle,
+      int ProcessInformationClass,
+      Pointer<Uint8> ProcessInformation,
+      int ProcessInformationLength,
+      Pointer<Uint32> ReturnLength,
+    );
 
 // ---------------------------------------------------------------------------
 // Struct: PROCESSENTRY32W
@@ -142,9 +150,15 @@ int _openProcess(int access, int inherit, int pid) {
 }
 
 int _readProcessMemory(
-    int hProcess, int baseAddr, Pointer<Uint8> buf, int size, Pointer<UintPtr> bytesRead) {
+  int hProcess,
+  int baseAddr,
+  Pointer<Uint8> buf,
+  int size,
+  Pointer<UintPtr> bytesRead,
+) {
   final f = _k32.lookupFunction<_ReadProcessMemoryC, _ReadProcessMemoryDart>(
-      'ReadProcessMemory');
+    'ReadProcessMemory',
+  );
   return f(hProcess, baseAddr, buf, size, bytesRead);
 }
 
@@ -154,27 +168,40 @@ int _closeHandle(int h) {
 }
 
 int _createToolhelp32Snapshot(int flags, int pid) {
-  final f = _k32.lookupFunction<_CreateToolhelp32SnapshotC,
-      _CreateToolhelp32SnapshotDart>('CreateToolhelp32Snapshot');
+  final f = _k32
+      .lookupFunction<
+        _CreateToolhelp32SnapshotC,
+        _CreateToolhelp32SnapshotDart
+      >('CreateToolhelp32Snapshot');
   return f(flags, pid);
 }
 
 int _process32FirstW(int snap, Pointer<ProcessEntry32W> entry) {
   final f = _k32.lookupFunction<_Process32FirstWC, _Process32FirstWDart>(
-      'Process32FirstW');
+    'Process32FirstW',
+  );
   return f(snap, entry);
 }
 
 int _process32NextW(int snap, Pointer<ProcessEntry32W> entry) {
   final f = _k32.lookupFunction<_Process32NextWC, _Process32NextWDart>(
-      'Process32NextW');
+    'Process32NextW',
+  );
   return f(snap, entry);
 }
 
 int _ntQueryInformationProcess(
-    int handle, int infoClass, Pointer<Uint8> info, int infoLen, Pointer<Uint32> retLen) {
-  final f = _nt.lookupFunction<_NtQueryInformationProcessC,
-      _NtQueryInformationProcessDart>('NtQueryInformationProcess');
+  int handle,
+  int infoClass,
+  Pointer<Uint8> info,
+  int infoLen,
+  Pointer<Uint32> retLen,
+) {
+  final f = _nt
+      .lookupFunction<
+        _NtQueryInformationProcessC,
+        _NtQueryInformationProcessDart
+      >('NtQueryInformationProcess');
   return f(handle, infoClass, info, infoLen, retLen);
 }
 
@@ -241,7 +268,11 @@ String? _getProcessCwd(int pid) {
     final retLen = calloc<Uint32>();
 
     final status = _ntQueryInformationProcess(
-      hProcess, _ProcessBasicInformation, pbi, 48, retLen,
+      hProcess,
+      _ProcessBasicInformation,
+      pbi,
+      48,
+      retLen,
     );
     if (!_ntSuccess(status)) {
       calloc.free(pbi);
@@ -273,7 +304,11 @@ String? _getProcessCwd(int pid) {
     final bytesRead = calloc<UintPtr>();
     try {
       final ok = _readProcessMemory(
-        hProcess, bufPtr, cwdWide.cast<Uint8>(), cwdLen, bytesRead,
+        hProcess,
+        bufPtr,
+        cwdWide.cast<Uint8>(),
+        cwdLen,
+        bytesRead,
       );
       if (ok == 0 || bytesRead.value == 0) return null;
 

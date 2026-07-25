@@ -102,11 +102,11 @@ class ProcessManager {
     this._logger,
     this.cooldownDuration = const Duration(seconds: 60),
   })
-      // ignore: prefer_initializing_formals
-      : _configStore = configStore,
-        _processRunner = processRunner ?? RealProcessRunner(),
-        _dataDir = dataDir ?? Logger.getDataDir(),
-        _webuiController = StreamController<WebUiEvent>.broadcast(sync: true) {
+    // ignore: prefer_initializing_formals
+    : _configStore = configStore,
+       _processRunner = processRunner ?? RealProcessRunner(),
+       _dataDir = dataDir ?? Logger.getDataDir(),
+       _webuiController = StreamController<WebUiEvent>.broadcast(sync: true) {
     _cleanupStalePidFiles();
     _autostartAll();
   }
@@ -119,9 +119,9 @@ class ProcessManager {
 
   /// Returns a broadcast stream of processed output lines for [name].
   Stream<String> outputStream(String name) {
-    return (_proc(name).outputController ??=
-            StreamController<String>.broadcast(sync: true))
-        .stream;
+    return (_proc(name).outputController ??= StreamController<String>.broadcast(
+      sync: true,
+    )).stream;
   }
 
   /// Returns a broadcast stream of [ProcState] transitions for [name].
@@ -167,17 +167,16 @@ class ProcessManager {
       }
 
       var executable = args.first;
-      final arguments =
-          args.length > 1 ? args.sublist(1) : <String>[];
+      final arguments = args.length > 1 ? args.sublist(1) : <String>[];
 
       // OS-level singleton check
       final executableName = p.basename(executable);
       try {
-        final alreadyRunning =
-            await _processRunner.isProcessRunning(executableName);
+        final alreadyRunning = await _processRunner.isProcessRunning(
+          executableName,
+        );
         if (alreadyRunning) {
-          _pushSystemMessage(
-              name, 'Process is already running at OS level');
+          _pushSystemMessage(name, 'Process is already running at OS level');
           _setState(name, ProcState.stopped);
           return;
         }
@@ -212,8 +211,7 @@ class ProcessManager {
       if (workingDirectory != null && !p.isAbsolute(executable)) {
         if (executable.contains('/') || executable.contains('\\')) {
           // Relative path with separators (e.g. ".\\python_embeded\\python.exe")
-          executable =
-              p.canonicalize(p.join(workingDirectory, executable));
+          executable = p.canonicalize(p.join(workingDirectory, executable));
         } else {
           // Bare name (e.g. "NapCatWinBootMain.exe"): check if it
           // exists in workingDirectory. If so, resolve to absolute;
@@ -257,10 +255,9 @@ class ProcessManager {
           .transform(encoding.decoder)
           .transform(const LineSplitter())
           .listen(
-        (line) => _onOutputLine(name, line, webuiPattern, historyLimit),
-        onError: (e) =>
-            _pushSystemMessage(name, 'Output read error: $e'),
-      );
+            (line) => _onOutputLine(name, line, webuiPattern, historyLimit),
+            onError: (e) => _pushSystemMessage(name, 'Output read error: $e'),
+          );
       proc.outputSubscription = subscription;
 
       _startFlushTimer(name, refreshMs);
@@ -389,8 +386,7 @@ class ProcessManager {
   // Private: crash restart
   // ---------------------------------------------------------------------------
 
-  void _onUnexpectedExit(
-      String name, ProcessConfig procConfig, int exitCode) {
+  void _onUnexpectedExit(String name, ProcessConfig procConfig, int exitCode) {
     _pushSystemMessage(name, 'Process exited with code $exitCode');
 
     final maxRestarts = procConfig.maxRestarts;
@@ -408,7 +404,9 @@ class ProcessManager {
     if (rs.count > maxRestarts) {
       _setState(name, ProcState.crashed);
       _pushSystemMessage(
-          name, '$name: max restarts ($maxRestarts) reached, giving up');
+        name,
+        '$name: max restarts ($maxRestarts) reached, giving up',
+      );
       proc.restart = null;
       return;
     }
@@ -422,9 +420,10 @@ class ProcessManager {
         final remaining = cooldownDuration - elapsed;
         _setState(name, ProcState.cooldown);
         _pushSystemMessage(
-            name,
-            'Restart cooldown: next attempt in ${remaining.inSeconds}s '
-            '(attempt ${rs.count} of $maxRestarts)');
+          name,
+          'Restart cooldown: next attempt in ${remaining.inSeconds}s '
+          '(attempt ${rs.count} of $maxRestarts)',
+        );
         _scheduleCooldownRestart(name, procConfig, remaining, rs);
         return;
       }
@@ -434,17 +433,27 @@ class ProcessManager {
   }
 
   void _doRestart(
-      String name, ProcessConfig procConfig, int maxRestarts, _RestartState rs) {
+    String name,
+    ProcessConfig procConfig,
+    int maxRestarts,
+    _RestartState rs,
+  ) {
     rs.lastRestartTime = DateTime.now();
     _pushSystemMessage(
-        name, 'Auto-restarting (attempt ${rs.count} of $maxRestarts)...');
+      name,
+      'Auto-restarting (attempt ${rs.count} of $maxRestarts)...',
+    );
     // Fire-and-forget: schedule a microtask restart so the current
     // exit handler can finish cleanup before the next start.
     Future.microtask(() => start(name));
   }
 
   void _scheduleCooldownRestart(
-      String name, ProcessConfig procConfig, Duration delay, _RestartState rs) {
+    String name,
+    ProcessConfig procConfig,
+    Duration delay,
+    _RestartState rs,
+  ) {
     rs.cooldownTimer?.cancel();
     rs.cooldownTimer = Timer(delay, () {
       final proc = _procs[name];
@@ -501,17 +510,18 @@ class ProcessManager {
   ProcessConfig? _lookupConfig(String name) {
     final config = _configStore.load();
     if (config == null) {
-      _pushSystemMessage(
-          name, 'Cannot start: no configuration loaded');
+      _pushSystemMessage(name, 'Cannot start: no configuration loaded');
       return null;
     }
     final match = config.processes.cast<ProcessConfig?>().firstWhere(
-          (p) => p!.name == name,
-          orElse: () => null,
-        );
+      (p) => p!.name == name,
+      orElse: () => null,
+    );
     if (match == null) {
       _pushSystemMessage(
-          name, 'Cannot start: process "$name" not found in config');
+        name,
+        'Cannot start: process "$name" not found in config',
+      );
     }
     return match;
   }
@@ -541,8 +551,7 @@ class ProcessManager {
   void _startFlushTimer(String name, int refreshMs) {
     final proc = _proc(name);
     proc.flushTimer?.cancel();
-    proc.flushTimer =
-        Timer.periodic(Duration(milliseconds: refreshMs), (_) {
+    proc.flushTimer = Timer.periodic(Duration(milliseconds: refreshMs), (_) {
       _proc(name).flushBuffer();
     });
   }
@@ -578,8 +587,10 @@ class ProcessManager {
     if (encodingName == null) return utf8;
     final encoding = Encoding.getByName(encodingName);
     if (encoding == null) {
-      _pushSystemMessage(name,
-          'Unknown encoding "$encodingName", falling back to UTF-8');
+      _pushSystemMessage(
+        name,
+        'Unknown encoding "$encodingName", falling back to UTF-8',
+      );
       return utf8;
     }
     return encoding;
@@ -620,8 +631,11 @@ class ProcessManager {
   /// The Flutter version uses [IProcessRunner.findPidsByCwd] (FFI on
   /// Windows, /proc on Linux).
   Future<void> _cleanupCwd(String name, String cwd) async {
-    _pushSystemMessage(name, 'Cleanup: searching for residual processes '
-        'in "$cwd"...');
+    _pushSystemMessage(
+      name,
+      'Cleanup: searching for residual processes '
+      'in "$cwd"...',
+    );
 
     try {
       final pids = await _processRunner.findPidsByCwd(cwd);
@@ -629,7 +643,9 @@ class ProcessManager {
 
       for (final pid in pids) {
         _pushSystemMessage(
-            name, 'Cleanup: killing residual process (PID $pid)');
+          name,
+          'Cleanup: killing residual process (PID $pid)',
+        );
         await _processRunner.killPid(pid);
       }
 
@@ -637,7 +653,9 @@ class ProcessManager {
       await Future<void>.delayed(const Duration(milliseconds: 300));
 
       _pushSystemMessage(
-          name, 'Cleanup: killed ${pids.length} residual process(es)');
+        name,
+        'Cleanup: killed ${pids.length} residual process(es)',
+      );
     } catch (e) {
       _pushSystemMessage(name, 'Cleanup: error during cwd cleanup: $e');
     }
@@ -662,7 +680,9 @@ class ProcessManager {
     final cwd = procConfig.cwd;
     if (cwd == null || cwd.isEmpty) {
       _pushSystemMessage(
-          name, 'delete_before_start requires cwd; skipping file cleanup');
+        name,
+        'delete_before_start requires cwd; skipping file cleanup',
+      );
       return;
     }
 
@@ -670,15 +690,16 @@ class ProcessManager {
 
     for (final relativePath in paths) {
       try {
-        final resolved =
-            p.canonicalize(p.join(cwdCanonical, relativePath));
+        final resolved = p.canonicalize(p.join(cwdCanonical, relativePath));
 
         // Path escape check: resolved must stay within cwd subtree.
         if (!resolved.startsWith(cwdCanonical + p.separator) &&
             resolved != cwdCanonical) {
           _pushSystemMessage(
-              name, 'delete_before_start: path escape blocked for '
-                  '"$relativePath"');
+            name,
+            'delete_before_start: path escape blocked for '
+            '"$relativePath"',
+          );
           continue;
         }
 
@@ -687,13 +708,16 @@ class ProcessManager {
           try {
             file.deleteSync();
             _pushSystemMessage(
-                name, 'delete_before_start: deleted "$relativePath"');
+              name,
+              'delete_before_start: deleted "$relativePath"',
+            );
           } catch (_) {
             // File is locked — try killing residual processes and retry.
             _pushSystemMessage(
-                name,
-                'delete_before_start: "$relativePath" is locked, '
-                    'attempting cwd cleanup...');
+              name,
+              'delete_before_start: "$relativePath" is locked, '
+              'attempting cwd cleanup...',
+            );
 
             // Fire cwd cleanup inline and retry the delete.
             _cleanupCwd(name, cwdCanonical).then((_) {
@@ -701,24 +725,28 @@ class ProcessManager {
                 if (file.existsSync()) {
                   file.deleteSync();
                   _pushSystemMessage(
-                      name,
-                      'delete_before_start: deleted "$relativePath" '
-                          '(after cwd cleanup)');
+                    name,
+                    'delete_before_start: deleted "$relativePath" '
+                    '(after cwd cleanup)',
+                  );
                 }
               } catch (_) {
                 _pushSystemMessage(
-                    name,
-                    'delete_before_start: could not delete "$relativePath" '
-                        'even after cwd cleanup — file may be locked by an '
-                        'external process');
+                  name,
+                  'delete_before_start: could not delete "$relativePath" '
+                  'even after cwd cleanup — file may be locked by an '
+                  'external process',
+                );
               }
             });
           }
         }
       } catch (e) {
         _pushSystemMessage(
-            name, 'delete_before_start: error processing '
-                '"$relativePath": $e');
+          name,
+          'delete_before_start: error processing '
+          '"$relativePath": $e',
+        );
       }
     }
   }
@@ -805,8 +833,10 @@ class ProcessManager {
               // Kill it with the same platform dispatch stop() uses.
               final procName = p.basenameWithoutExtension(file.path);
               _processRunner.killPid(pid).then((_) {
-                _log('[trayforge] Process "$procName": killed orphaned '
-                    'instance from previous session (PID $pid)');
+                _log(
+                  '[trayforge] Process "$procName": killed orphaned '
+                  'instance from previous session (PID $pid)',
+                );
                 try {
                   if (file.existsSync()) file.deleteSync();
                 } catch (_) {}
@@ -830,8 +860,9 @@ class ProcessManager {
   void _writePidFile(String name, int pid) {
     final dir = Directory(_pidsDir);
     if (!dir.existsSync()) dir.createSync(recursive: true);
-    File(p.join(_pidsDir, '$name.pid'))
-        .writeAsStringSync(_pidJson(pid), flush: true);
+    File(
+      p.join(_pidsDir, '$name.pid'),
+    ).writeAsStringSync(_pidJson(pid), flush: true);
   }
 
   void _deletePidFile(String name) {
