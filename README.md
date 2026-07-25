@@ -12,6 +12,8 @@ auto-restart on crash, and colour-coded tray icon at a glance.
   running, red when none are. Double-click the tray icon (or right-click → Dashboard)
   to open the management window.
 - **Start / stop processes** from the tray menu or the dashboard.
+- **Inline process editing** — add, edit, duplicate, delete, and reorder processes
+  directly from the Dashboard — no need to open Settings.
 - **Auto-start** — processes with `autostart: true` launch when TrayForge starts.
 - **Crash recovery** — configurable `max_restarts` with cooldown periods. Gives up
   after the limit and marks the process as crashed.
@@ -95,6 +97,27 @@ TrayForge stores its config in `config.json` under the app data directory
 |------------------------|---------|----------|-----------------------------------------------|
 | `output_history_limit` | `int`   | `1000`   | Max output lines buffered per process.         |
 | `output_refresh_ms`    | `int`   | `500`    | Interval (ms) for batching output line flushes. |
+
+## Usage
+
+### Managing processes
+
+All process management happens on the **Dashboard**:
+
+- **Add** — click the `+` button in the AppBar or "Add Process" on the welcome screen
+- **Edit** — click the pencil icon on any process card or in the detail page AppBar
+- **Duplicate** — open edit form and click "Duplicate" to copy a process
+- **Delete** — open edit form and click "Delete" (requires confirmation; warns if running)
+- **Reorder** — long-press and drag the `≡` handle on the left of each card
+- **Start/Stop** — toggle button on each card or in the detail page
+
+### Settings
+
+The Settings page (gear icon) contains only global options:
+
+- **Output refresh (ms)** — batch interval for output display (100ms steps, 100–5000)
+- **History limit** — max output lines per process (500-line steps, 100–100000)
+- **Launch at startup** — register TrayForge for OS-level autostart
 
 ## Build & Run
 
