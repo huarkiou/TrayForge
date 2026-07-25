@@ -65,66 +65,66 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Tooltip(
-          message: tooltip,
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: Colors.grey),
-          ),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, color: Colors.grey),
         ),
         const SizedBox(height: 4),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
+        Tooltip(
+          message: tooltip,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onFieldSubmitted: (v) {
+                    final val = int.tryParse(v);
+                    if (val != null && val >= min && val <= max) {
+                      onChanged(val);
+                    } else {
+                      controller.text = value.toString();
+                    }
+                  },
                 ),
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                onFieldSubmitted: (v) {
-                  final val = int.tryParse(v);
-                  if (val != null && val >= min && val <= max) {
-                    onChanged(val);
-                  } else {
-                    controller.text = value.toString();
-                  }
-                },
               ),
-            ),
-            const SizedBox(width: 4),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 32,
-                  height: 24,
-                  child: IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_up, size: 20),
-                    onPressed: value < max
-                        ? () => onChanged(value + step)
-                        : null,
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
+              const SizedBox(width: 4),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 32,
+                    height: 24,
+                    child: IconButton(
+                      icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                      onPressed: value < max
+                          ? () => onChanged(value + step)
+                          : null,
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: 32,
-                  height: 24,
-                  child: IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_down, size: 20),
-                    onPressed: value > min
-                        ? () => onChanged(value - step)
-                        : null,
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
+                  SizedBox(
+                    width: 32,
+                    height: 24,
+                    child: IconButton(
+                      icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                      onPressed: value > min
+                          ? () => onChanged(value - step)
+                          : null,
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
