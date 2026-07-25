@@ -52,7 +52,9 @@ which process locks a file requires OS-specific tooling (`handle.exe` on Windows
 `fuser`/`lsof` on Linux) that isn't universally available. Current implementation
 logs a system message and continues. Revisit if this becomes a user-facing issue.
 
-### D6: `cooldownDuration` made configurable for testability
+### D6: `cooldownDuration` exposed as constructor parameter
 
-Spec says fixed 60s. Made a constructor parameter defaulting to 60s so tests can
-verify cooldown logic without 60s delays. Production code always uses the default.
+Spec says fixed 60s. Made a constructor parameter defaulting to 60s so that
+future configuration (e.g. user-facing restart cooldown in Settings) can pass
+a different value without internal refactoring. Tests also benefit from the
+hook but the primary motivation is forward-looking API design.
