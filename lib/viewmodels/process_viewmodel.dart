@@ -65,7 +65,7 @@ class ProcessViewModel extends ChangeNotifier {
       _optimisticState = ProcState.stopping;
       notifyListeners();
       _processManager.stop(name);
-    } else if (_state != ProcState.starting && _state != ProcState.stopping) {
+    } else if (_state.isTerminal) {
       _optimisticState = ProcState.starting;
       notifyListeners();
       _processManager.start(name);
@@ -78,7 +78,7 @@ class ProcessViewModel extends ChangeNotifier {
     // i.e. on terminal states (running, stopped, crashed, cooldown), not
     // on intermediate states (starting, stopping). This ensures the spinner
     // stays visible until the ProcessManager confirms success or failure.
-    if (state != ProcState.starting && state != ProcState.stopping) {
+    if (state.isTerminal) {
       _optimisticState = null;
     }
     notifyListeners();

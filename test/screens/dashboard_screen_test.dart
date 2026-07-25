@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge_flutter/foundation/models.dart';
 import 'package:trayforge_flutter/screens/dashboard_screen.dart';
+import 'package:trayforge_flutter/services/autostart.dart';
 import 'package:trayforge_flutter/services/config_store.dart';
 import 'package:trayforge_flutter/services/process_manager.dart';
 import 'package:trayforge_flutter/viewmodels/dashboard_viewmodel.dart';
@@ -72,6 +73,7 @@ void main() {
       final sm = SettingsViewModel(
         configStore: configStore,
         processManager: _FakeProcessManager(),
+        autostart: Autostart(),
       );
 
       await tester.pumpWidget(

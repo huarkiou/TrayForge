@@ -1,6 +1,8 @@
 /// Core data types for the TrayForge application.
 library;
 
+import 'package:flutter/material.dart';
+
 /// The lifecycle state of a managed process.
 enum ProcState {
   stopped,
@@ -9,6 +11,30 @@ enum ProcState {
   stopping,
   crashed,
   cooldown,
+}
+
+/// Extension on [ProcState] providing derived semantics.
+extension ProcStateX on ProcState {
+  /// Whether the process is actively running or starting.
+  bool get isActive => this == ProcState.running || this == ProcState.starting;
+
+  /// Whether the process is in a terminal (non-transitioning) state.
+  bool get isTerminal => this != ProcState.starting && this != ProcState.stopping;
+
+  /// Returns a colour representing the process state.
+  Color get statusColor {
+    switch (this) {
+      case ProcState.running:
+        return Colors.green;
+      case ProcState.crashed:
+        return Colors.red;
+      case ProcState.stopped:
+      case ProcState.starting:
+      case ProcState.stopping:
+      case ProcState.cooldown:
+        return Colors.grey;
+    }
+  }
 }
 
 /// Configuration for a single managed process.
@@ -89,25 +115,18 @@ class ProcessConfig {
     List<String>? deleteBeforeStart,
     int? maxRestarts,
     Map<String, String>? env,
-    bool clearCwd = false,
-    bool clearEncoding = false,
-    bool clearWebuiPattern = false,
-    bool clearMaxRestarts = false,
-    bool clearEnv = false,
   }) {
     return ProcessConfig(
       name: name ?? this.name,
-      cwd: clearCwd ? null : (cwd ?? this.cwd),
+      cwd: cwd ?? this.cwd,
       cmd: cmd ?? this.cmd,
-      encoding: clearEncoding ? null : (encoding ?? this.encoding),
+      encoding: encoding ?? this.encoding,
       singleton: singleton ?? this.singleton,
       autostart: autostart ?? this.autostart,
-      webuiPattern:
-          clearWebuiPattern ? null : (webuiPattern ?? this.webuiPattern),
+      webuiPattern: webuiPattern ?? this.webuiPattern,
       deleteBeforeStart: deleteBeforeStart ?? this.deleteBeforeStart,
-      maxRestarts:
-          clearMaxRestarts ? null : (maxRestarts ?? this.maxRestarts),
-      env: clearEnv ? null : (env ?? this.env),
+      maxRestarts: maxRestarts ?? this.maxRestarts,
+      env: env ?? this.env,
     );
   }
 }

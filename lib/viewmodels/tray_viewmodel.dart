@@ -66,7 +66,7 @@ class TrayViewModel extends ChangeNotifier {
     for (final proc in processes) {
       final name = proc.name;
       final state = _states[name] ?? ProcState.stopped;
-      final isRunning = state == ProcState.running;
+      final isRunning = state.isActive;
       final label = isRunning ? '\u2713 $name' : '   $name';
       items.add(MenuItem(
         key: 'proc:$name',
@@ -169,7 +169,7 @@ class TrayViewModel extends ChangeNotifier {
 
   void _toggleProcess(String name) {
     final state = _states[name] ?? ProcState.stopped;
-    if (state == ProcState.running) {
+    if (state.isActive) {
       _processManager.stop(name);
     } else {
       _processManager.start(name);

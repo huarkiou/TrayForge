@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:trayforge_flutter/foundation/logger.dart';
 import 'package:trayforge_flutter/foundation/models.dart';
 import 'package:trayforge_flutter/screens/dashboard_screen.dart';
+import 'package:trayforge_flutter/services/autostart.dart';
 import 'package:trayforge_flutter/services/config_store.dart';
 import 'package:trayforge_flutter/services/process_manager.dart';
 import 'package:trayforge_flutter/services/single_instance.dart';
@@ -26,6 +27,7 @@ late final ConfigStore _configStore;
 late final ProcessManager _processManager;
 late final TrayViewModel _trayViewModel;
 late final DashboardViewModel _dashboardViewModel;
+late final Autostart _autostart;
 late final SettingsViewModel _settingsViewModel;
 
 // ---------------------------------------------------------------------------
@@ -69,6 +71,8 @@ Future<void> main() async {
     logger: _logger,
   );
 
+  _autostart = Autostart(logger: _logger);
+
   // ---- ViewModels ----
 
   _dashboardViewModel = DashboardViewModel(
@@ -80,6 +84,7 @@ Future<void> main() async {
   _settingsViewModel = SettingsViewModel(
     configStore: _configStore,
     processManager: _processManager,
+    autostart: _autostart,
   );
 
   _trayViewModel = TrayViewModel(

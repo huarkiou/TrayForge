@@ -92,7 +92,12 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            _toggleSearch,
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: ListenableBuilder(
           listenable: _vm,
@@ -162,6 +167,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
             ),
           Expanded(child: _buildOutputBody()),
         ],
+      ),
       ),
     );
   }

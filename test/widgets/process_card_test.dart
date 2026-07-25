@@ -279,14 +279,14 @@ void main() {
       await tester.pumpWidget(buildCard());
       await tester.pump();
 
-      expect(find.byIcon(Icons.open_in_browser), findsOneWidget);
+      expect(find.byIcon(Icons.content_copy), findsOneWidget);
     });
 
     testWidgets('hides WebUI button when no URL', (tester) async {
       await tester.pumpWidget(buildCard());
       await tester.pump();
 
-      expect(find.byIcon(Icons.open_in_browser), findsNothing);
+      expect(find.byIcon(Icons.content_copy), findsNothing);
     });
 
     // ---- Tap navigation ----

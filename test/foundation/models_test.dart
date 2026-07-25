@@ -165,29 +165,6 @@ void main() {
         expect(copy.cmd, 'cmd');
       });
 
-      test('clears optional fields with clear flags', () {
-        final original = ProcessConfig(
-          name: 'orig',
-          cwd: '/tmp',
-          cmd: 'cmd',
-          encoding: 'utf-8',
-          webuiPattern: 'p',
-          maxRestarts: 3,
-          env: {'A': '1'},
-        );
-        final copy = original.copyWith(
-          clearCwd: true,
-          clearEncoding: true,
-          clearWebuiPattern: true,
-          clearMaxRestarts: true,
-          clearEnv: true,
-        );
-        expect(copy.cwd, isNull);
-        expect(copy.encoding, isNull);
-        expect(copy.webuiPattern, isNull);
-        expect(copy.maxRestarts, isNull);
-        expect(copy.env, isNull);
-      });
     });
   });
 

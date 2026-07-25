@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:trayforge_flutter/foundation/models.dart';
+import 'package:trayforge_flutter/services/autostart.dart';
 import 'package:trayforge_flutter/services/config_store.dart';
 import 'package:trayforge_flutter/services/process_manager.dart';
 
@@ -15,6 +16,7 @@ import 'package:trayforge_flutter/services/process_manager.dart';
 class SettingsViewModel extends ChangeNotifier {
   final ConfigStore _configStore;
   final ProcessManager _processManager;
+  final Autostart _autostart;
 
   List<ProcessConfig> _processes = [];
   StreamSubscription<void>? _configSub;
@@ -22,8 +24,10 @@ class SettingsViewModel extends ChangeNotifier {
   SettingsViewModel({
     required ConfigStore configStore,
     required ProcessManager processManager,
+    required Autostart autostart,
   })  : _configStore = configStore,
-        _processManager = processManager {
+        _processManager = processManager,
+        _autostart = autostart {
     _reload();
     _configSub = configStore.configChanged.listen((_) => _reload());
   }
@@ -34,7 +38,7 @@ class SettingsViewModel extends ChangeNotifier {
   /// Whether a process with [name] is currently running.
   bool isRunning(String name) {
     final state = _processManager.getState(name);
-    return state == ProcState.running || state == ProcState.starting;
+    return state.isActive;
   }
 
   /// Stops a running process by name.
@@ -88,6 +92,19 @@ class SettingsViewModel extends ChangeNotifier {
     final item = _processes.removeAt(oldIndex);
     _processes.insert(newIndex, item);
     _save();
+  }
+
+  /// Whether TrayForge is registered for OS-level autostart.
+  bool get autostartEnabled => _autostart.isEnabled();
+
+  /// Toggles OS-level autostart registration on or off.
+  Future<void> toggleAutostart() async {
+    if (_autostart.isEnabled()) {
+      await _autostart.disable();
+    } else {
+      await _autostart.enable();
+    }
+    notifyListeners();
   }
 
   /// Validates a [ProcessConfig] using [ConfigStore.validate].

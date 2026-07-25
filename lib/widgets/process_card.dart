@@ -74,7 +74,7 @@ class _Header extends StatelessWidget {
         ),
         if (viewModel.webuiUrl != null)
           IconButton(
-            icon: const Icon(Icons.open_in_browser, size: 20),
+            icon: const Icon(Icons.content_copy, size: 20),
             tooltip: 'Copy URL to clipboard',
             onPressed: () {
               Clipboard.setData(

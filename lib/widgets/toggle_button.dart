@@ -26,7 +26,7 @@ class ToggleButton extends StatelessWidget {
       );
     }
 
-    final isRunning = viewModel.state == ProcState.running;
+    final isRunning = viewModel.state.isActive;
     return IconButton(
       icon: Icon(
         isRunning ? Icons.stop_circle_outlined : Icons.play_circle_outlined,

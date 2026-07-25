@@ -125,30 +125,42 @@ class _SettingsPageState extends State<SettingsPage> {
       appBar: AppBar(
         title: const Text('Settings'),
       ),
-      body: processes.isEmpty
-          ? const Center(
-              child: Text(
-                'No processes configured',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            )
-          : ReorderableListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: processes.length,
-              onReorderItem: _vm.reorderItem,
-              proxyDecorator: _proxyDecorator,
-              itemBuilder: (context, index) {
-                return _ProcessRow(
-                  key: ValueKey(processes[index].name),
-                  index: index,
-                  config: processes[index],
-                  isRunning: _vm.isRunning(processes[index].name),
-                  onTap: () => _openEditPage(index),
-                  onCopy: () => _vm.copy(index),
-                  onDelete: () => _confirmDelete(index),
-                );
-              },
-            ),
+      body: Column(
+        children: [
+          SwitchListTile(
+            title: const Text('Launch at startup'),
+            value: _vm.autostartEnabled,
+            onChanged: (_) => _vm.toggleAutostart(),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: processes.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No processes configured',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                  )
+                : ReorderableListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: processes.length,
+                    onReorderItem: _vm.reorderItem,
+                    proxyDecorator: _proxyDecorator,
+                    itemBuilder: (context, index) {
+                      return _ProcessRow(
+                        key: ValueKey(processes[index].name),
+                        index: index,
+                        config: processes[index],
+                        isRunning: _vm.isRunning(processes[index].name),
+                        onTap: () => _openEditPage(index),
+                        onCopy: () => _vm.copy(index),
+                        onDelete: () => _confirmDelete(index),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _openAddPage,
         tooltip: 'Add Process',
