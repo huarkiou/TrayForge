@@ -6,7 +6,7 @@ import 'dart:io';
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:trayforge_flutter/foundation/logger.dart';
+import 'package:trayforge/foundation/logger.dart';
 
 /// Platform-level single-instance guard.
 ///
@@ -38,7 +38,7 @@ class SingleInstance {
 
   SingleInstance({String? dataDir, this.logger, String? mutexName})
       : dataDir = dataDir ?? Logger.getDataDir(),
-        _mutexName = mutexName ?? 'Local\\TrayForge_SingleInstance';
+        _mutexName = mutexName ?? 'Local\\trayforge_SingleInstance';
 
   // ---- public API ----
 

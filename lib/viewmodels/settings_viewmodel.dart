@@ -3,10 +3,10 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/services/autostart.dart';
-import 'package:trayforge_flutter/services/config_store.dart';
-import 'package:trayforge_flutter/services/process_manager.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/services/autostart.dart';
+import 'package:trayforge/services/config_store.dart';
+import 'package:trayforge/services/process_manager.dart';
 
 /// ViewModel for the Settings page.
 ///
@@ -114,7 +114,7 @@ class SettingsViewModel extends ChangeNotifier {
     _save();
   }
 
-  /// Whether TrayForge is registered for OS-level autostart.
+  /// Whether trayforge is registered for OS-level autostart.
   bool get autostartEnabled => _autostart.isEnabled();
 
   /// Toggles OS-level autostart registration on or off.

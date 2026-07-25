@@ -7,9 +7,9 @@
 
 ## Background
 
-Python TrayForge saves the global "Launch at startup" toggle **both** to the OS registry AND to `config.json` as `"autostart": true/false`.
+Python trayforge saves the global "Launch at startup" toggle **both** to the OS registry AND to `config.json` as `"autostart": true/false`.
 
-Flutter TrayForge (current) only writes the OS registry via `Autostart.enable()` / `disable()`. The toggle state is not persisted in config.
+Flutter trayforge (current) only writes the OS registry via `Autostart.enable()` / `disable()`. The toggle state is not persisted in config.
 
 ## Question
 

@@ -3,14 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:trayforge_flutter/foundation/logger.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
+import 'package:trayforge/foundation/logger.dart';
+import 'package:trayforge/foundation/models.dart';
 
 /// Configuration persistence layer.
 ///
 /// Reads and writes [AppConfig] to `config.json` under [dataDir],
 /// with automatic backup and validation. Compatible with Python
-/// TrayForge JSON schema.
+/// trayforge JSON schema.
 class ConfigStore {
   final String dataDir;
   final int maxBackupBytes;

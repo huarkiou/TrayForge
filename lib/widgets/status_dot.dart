@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
+import 'package:trayforge/foundation/models.dart';
 
 /// A small coloured circle indicating process status.
 ///

@@ -4,12 +4,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
-import 'package:trayforge_flutter/foundation/logger.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/foundation/output_pipeline.dart';
-import 'package:trayforge_flutter/foundation/shlex.dart';
-import 'package:trayforge_flutter/services/config_store.dart';
-import 'package:trayforge_flutter/services/process_runner.dart';
+import 'package:trayforge/foundation/logger.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/foundation/output_pipeline.dart';
+import 'package:trayforge/foundation/shlex.dart';
+import 'package:trayforge/services/config_store.dart';
+import 'package:trayforge/services/process_runner.dart';
 
 /// Event raised when a Web UI URL is detected in process output.
 class WebUiEvent {
@@ -186,7 +186,7 @@ class ProcessManager {
       }
 
       // Kill residual processes from the same working directory before
-      // starting.  Matches Python TrayForge's `cleanup_cwd` behaviour.
+      // starting.  Matches Python trayforge's `cleanup_cwd` behaviour.
       if (procConfig.cleanupCwd && procConfig.cwd != null) {
         await _cleanupCwd(name, procConfig.cwd!);
       }
@@ -570,7 +570,7 @@ class ProcessManager {
   }
 
   void _pushSystemMessage(String name, String message) {
-    final line = '[TrayForge] $message';
+    final line = '[trayforge] $message';
     _proc(name).outputController?.add(line);
   }
 
@@ -616,7 +616,7 @@ class ProcessManager {
 
   /// Kills all processes whose current working directory matches [cwd].
   ///
-  /// Mirrors Python TrayForge's `_kill_cwd_processes` which used psutil.
+  /// Mirrors Python trayforge's `_kill_cwd_processes` which used psutil.
   /// The Flutter version uses [IProcessRunner.findPidsByCwd] (FFI on
   /// Windows, /proc on Linux).
   Future<void> _cleanupCwd(String name, String cwd) async {
@@ -653,7 +653,7 @@ class ProcessManager {
   /// escape the cwd subtree are blocked and reported via system messages.
   ///
   /// When a file is locked, [cleanupCwd] is attempted (kill residual
-  /// processes) and the delete is retried once — matching Python TrayForge's
+  /// processes) and the delete is retried once — matching Python trayforge's
   /// behaviour.
   void _deleteBeforeStartFiles(String name, ProcessConfig procConfig) {
     final paths = procConfig.deleteBeforeStart;
@@ -801,11 +801,11 @@ class ProcessManager {
                 return;
               }
 
-              // Start time match — orphan from a previous TrayForge session.
+              // Start time match — orphan from a previous trayforge session.
               // Kill it with the same platform dispatch stop() uses.
               final procName = p.basenameWithoutExtension(file.path);
               _processRunner.killPid(pid).then((_) {
-                _log('[TrayForge] Process "$procName": killed orphaned '
+                _log('[trayforge] Process "$procName": killed orphaned '
                     'instance from previous session (PID $pid)');
                 try {
                   if (file.existsSync()) file.deleteSync();

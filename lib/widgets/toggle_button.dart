@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/viewmodels/process_viewmodel.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/viewmodels/process_viewmodel.dart';
 
 /// Start/stop toggle with spinner during transitions.
 class ToggleButton extends StatelessWidget {

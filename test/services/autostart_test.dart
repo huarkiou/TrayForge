@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/services/autostart.dart';
+import 'package:trayforge/services/autostart.dart';
 
 void main() {
   group('Autostart', () {
@@ -28,13 +28,13 @@ void main() {
 
         await autostart.enable();
 
-        final desktopFile = File('${tmpDir.path}/TrayForge.desktop');
+        final desktopFile = File('${tmpDir.path}/trayforge.desktop');
         expect(desktopFile.existsSync(), isTrue);
 
         final content = desktopFile.readAsStringSync();
         expect(content, contains('[Desktop Entry]'));
         expect(content, contains('Type=Application'));
-        expect(content, contains('Name=TrayForge'));
+        expect(content, contains('Name=trayforge'));
         expect(content, contains('Exec='));
         expect(content, contains('Terminal=false'));
         expect(content, contains('X-GNOME-Autostart-enabled=true'));
@@ -56,7 +56,7 @@ void main() {
         await autostart.disable();
         expect(autostart.isEnabled(), isFalse);
 
-        final desktopFile = File('${tmpDir.path}/TrayForge.desktop');
+        final desktopFile = File('${tmpDir.path}/trayforge.desktop');
         expect(desktopFile.existsSync(), isFalse);
       });
 
@@ -73,7 +73,7 @@ void main() {
 
         await autostart.enable();
 
-        final desktopFile = File('${tmpDir.path}/TrayForge.desktop');
+        final desktopFile = File('${tmpDir.path}/trayforge.desktop');
         final content = desktopFile.readAsStringSync();
 
         final execLine =

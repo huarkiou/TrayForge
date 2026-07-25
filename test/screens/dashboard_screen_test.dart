@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/screens/dashboard_screen.dart';
-import 'package:trayforge_flutter/services/autostart.dart';
-import 'package:trayforge_flutter/services/config_store.dart';
-import 'package:trayforge_flutter/services/process_manager.dart';
-import 'package:trayforge_flutter/viewmodels/dashboard_viewmodel.dart';
-import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/screens/dashboard_screen.dart';
+import 'package:trayforge/services/autostart.dart';
+import 'package:trayforge/services/config_store.dart';
+import 'package:trayforge/services/process_manager.dart';
+import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
+import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
 /// A minimal fake that satisfies the [ProcessManager] interface for
 /// DashboardViewModel construction.

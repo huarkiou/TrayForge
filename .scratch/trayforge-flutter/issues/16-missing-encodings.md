@@ -7,13 +7,13 @@
 
 ## Background
 
-Python TrayForge encoding dropdown offers:
+Python trayforge encoding dropdown offers:
 
 ```
 utf-8, gbk, gb2312, cp936, shift_jis, latin-1
 ```
 
-Flutter TrayForge (current) only offered:
+Flutter trayforge (current) only offered:
 
 ```
 utf-8, gbk

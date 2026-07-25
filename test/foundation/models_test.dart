@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
+import 'package:trayforge/foundation/models.dart';
 
 void main() {
   group('ProcState', () {

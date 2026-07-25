@@ -4,7 +4,7 @@ Status: needs-triage
 
 ## Summary
 
-Python 版 TrayForge 的 config.json 顶层有 `"autostart": false` 作为全局开关，可以一键关闭所有进程的自动启动，无需逐个修改进程配置。
+Python 版 trayforge 的 config.json 顶层有 `"autostart": false` 作为全局开关，可以一键关闭所有进程的自动启动，无需逐个修改进程配置。
 
 Flutter 版只有两种 autostart：
 - 每个进程独立的 `autostart` 字段

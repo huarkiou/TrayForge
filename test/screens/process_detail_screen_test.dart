@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/screens/process_detail_screen.dart';
-import 'package:trayforge_flutter/services/process_manager.dart';
-import 'package:trayforge_flutter/viewmodels/process_viewmodel.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/screens/process_detail_screen.dart';
+import 'package:trayforge/services/process_manager.dart';
+import 'package:trayforge/viewmodels/process_viewmodel.dart';
 
 /// A fake ProcessManager that provides state and output streams on demand.
 class _FakeProcessManager extends Fake implements ProcessManager {

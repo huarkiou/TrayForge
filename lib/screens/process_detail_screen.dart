@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:trayforge_flutter/viewmodels/process_viewmodel.dart';
-import 'package:trayforge_flutter/widgets/copy_snackbar.dart';
-import 'package:trayforge_flutter/widgets/status_dot.dart';
-import 'package:trayforge_flutter/widgets/toggle_button.dart';
+import 'package:trayforge/viewmodels/process_viewmodel.dart';
+import 'package:trayforge/widgets/copy_snackbar.dart';
+import 'package:trayforge/widgets/status_dot.dart';
+import 'package:trayforge/widgets/toggle_button.dart';
 
 /// Full detail page for a single process.
 ///

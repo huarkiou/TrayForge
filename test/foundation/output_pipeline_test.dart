@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/foundation/output_pipeline.dart';
+import 'package:trayforge/foundation/output_pipeline.dart';
 
 void main() {
   group('OutputPipeline.stripAnsi', () {

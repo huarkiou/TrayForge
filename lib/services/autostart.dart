@@ -3,16 +3,16 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import 'package:trayforge_flutter/foundation/logger.dart';
+import 'package:trayforge/foundation/logger.dart';
 
-/// Manages OS-level autostart registration so TrayForge launches at boot.
+/// Manages OS-level autostart registration so trayforge launches at boot.
 ///
 /// On Windows, reads/writes the registry key
-/// `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TrayForge`
+/// `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\trayforge`
 /// via `reg.exe` commands.
 ///
 /// On Linux, manages the XDG autostart desktop file at
-/// `~/.config/autostart/TrayForge.desktop`.
+/// `~/.config/autostart/trayforge.desktop`.
 class Autostart {
   final Logger? logger;
   final String? _autostartDir;
@@ -25,14 +25,14 @@ class Autostart {
 
   // ---- public API ----
 
-  /// Returns `true` if TrayForge is registered for autostart.
+  /// Returns `true` if trayforge is registered for autostart.
   bool isEnabled() {
     if (Platform.isWindows) return _isEnabledWindows();
     if (Platform.isLinux) return _isEnabledLinux();
     return false;
   }
 
-  /// Registers TrayForge for autostart.
+  /// Registers trayforge for autostart.
   ///
   /// Points to the current executable path via [Platform.resolvedExecutable].
   Future<void> enable() async {
@@ -58,7 +58,7 @@ class Autostart {
 
   static const String _regPath =
       r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
-  static const String _regValue = 'TrayForge';
+  static const String _regValue = 'trayforge';
 
   bool _isEnabledWindows() {
     try {
@@ -126,13 +126,13 @@ class Autostart {
 
   String get _desktopFilePath {
     if (_autostartDir != null) {
-      return p.join(_autostartDir, 'TrayForge.desktop');
+      return p.join(_autostartDir, 'trayforge.desktop');
     }
     final home = Platform.environment['HOME'];
     if (home == null || home.isEmpty) {
       throw StateError('HOME environment variable not set');
     }
-    return p.join(home, '.config', 'autostart', 'TrayForge.desktop');
+    return p.join(home, '.config', 'autostart', 'trayforge.desktop');
   }
 
   bool _isEnabledLinux() {
@@ -152,8 +152,8 @@ class Autostart {
 
       final content = '''[Desktop Entry]
 Type=Application
-Name=TrayForge
-Comment=TrayForge system tray application
+Name=trayforge
+Comment=trayforge system tray application
 Exec="$exePath"
 Terminal=false
 X-GNOME-Autostart-enabled=true

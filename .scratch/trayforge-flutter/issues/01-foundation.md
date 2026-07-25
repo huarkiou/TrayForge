@@ -15,4 +15,4 @@
 - [x] `OutputPipeline.stripAnsi(line)` — regex-based ANSI escape code removal
 - [x] `OutputPipeline.tryDetectWebUi(line, pattern)` — regex match, returns capture group 1 as URL or null
 - [x] `Logger` — file logger with rotation: 1MB max per file, keep 3 backups, UTF-8, writes to `{data_dir}/logs/trayforge.log`
-- [x] `Logger.getDataDir()` — resolves `TRAYFORGE_DATA_DIR` env var, falls back to `%LOCALAPPDATA%/TrayForge` (Win) or `$XDG_DATA_HOME/TrayForge` (Linux)
+- [x] `Logger.getDataDir()` — resolves `TRAYFORGE_DATA_DIR` env var, falls back to `%LOCALAPPDATA%/trayforge` (Win) or `$XDG_DATA_HOME/trayforge` (Linux)

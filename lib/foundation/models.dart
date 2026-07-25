@@ -1,4 +1,4 @@
-/// Core data types for the TrayForge application.
+/// Core data types for the trayforge application.
 library;
 
 import 'package:flutter/material.dart';
@@ -99,7 +99,7 @@ class ProcessConfig {
 
   /// Parses a JSON value that should be a list of strings.
   ///
-  /// Accepts a [List] (Python TrayForge format). Returns `[]` for
+  /// Accepts a [List] (Python trayforge format). Returns `[]` for
   /// any other type (e.g. old Flutter `bool` format) or when missing.
   static List<String> _parseStringList(dynamic value) {
     if (value is List) {

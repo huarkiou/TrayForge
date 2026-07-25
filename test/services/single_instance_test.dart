@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/services/single_instance.dart';
+import 'package:trayforge/services/single_instance.dart';
 
 void main() {
   group('SingleInstance', () {
@@ -92,7 +92,7 @@ void main() {
         if (!Platform.isWindows) return;
         final si = SingleInstance(
           dataDir: tmpDir.path,
-          mutexName: 'Local\\TrayForge_Test_FirstCall',
+          mutexName: 'Local\\trayforge_Test_FirstCall',
         );
         try {
           expect(si.tryAcquire(), isTrue);
@@ -105,7 +105,7 @@ void main() {
           () {
         if (!Platform.isWindows) return;
 
-        final mutexName = 'Local\\TrayForge_Test_${DateTime.now().microsecondsSinceEpoch}';
+        final mutexName = 'Local\\trayforge_Test_${DateTime.now().microsecondsSinceEpoch}';
         final si1 = SingleInstance(dataDir: tmpDir.path, mutexName: mutexName);
         try {
           expect(si1.tryAcquire(), isTrue);
@@ -126,7 +126,7 @@ void main() {
 
         final si = SingleInstance(
           dataDir: tmpDir.path,
-          mutexName: 'Local\\TrayForge_Test_MultiRelease',
+          mutexName: 'Local\\trayforge_Test_MultiRelease',
         );
 
         si.release();

@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/services/config_store.dart';
-import 'package:trayforge_flutter/services/process_manager.dart';
-import 'package:trayforge_flutter/viewmodels/process_viewmodel.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/services/config_store.dart';
+import 'package:trayforge/services/process_manager.dart';
+import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import '../helpers/test_mocks.dart';
 
 AppConfig _testConfig({

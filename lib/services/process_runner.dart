@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:trayforge_flutter/foundation/process_cwd.dart';
+import 'package:trayforge/foundation/process_cwd.dart';
 
 /// Abstract handle to a running process.
 ///

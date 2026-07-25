@@ -3,10 +3,10 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/services/config_store.dart';
-import 'package:trayforge_flutter/services/process_manager.dart';
-import 'package:trayforge_flutter/viewmodels/process_viewmodel.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/services/config_store.dart';
+import 'package:trayforge/services/process_manager.dart';
+import 'package:trayforge/viewmodels/process_viewmodel.dart';
 
 /// ViewModel for the Dashboard window.
 ///
@@ -23,7 +23,7 @@ class DashboardViewModel extends ChangeNotifier {
   StreamSubscription<void>? _configSub;
 
   /// App title shown in the window title bar and Dashboard header.
-  static const String appTitle = 'TrayForge';
+  static const String appTitle = 'trayforge';
 
   DashboardViewModel({
     required ConfigStore configStore,

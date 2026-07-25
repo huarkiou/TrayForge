@@ -1,10 +1,10 @@
-# TrayForge Flutter — Spec
+# trayforge Flutter — Spec
 
 Status: `ready-for-agent`
 
 ## Problem Statement
 
-TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试。Avalonia (C#) 重写因 MVVM 样板代码过多和调试体验差而夭折。需要一套开发效率高、调试友好的跨平台方案，功能对标现有 Python 版，UX 推倒重来。
+trayforge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试。Avalonia (C#) 重写因 MVVM 样板代码过多和调试体验差而夭折。需要一套开发效率高、调试友好的跨平台方案，功能对标现有 Python 版，UX 推倒重来。
 
 ## Solution
 
@@ -48,10 +48,10 @@ TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试�
 25. As a user, I want to specify files to delete before starting a process (e.g. lock files), so that stale locks don't block startup
 26. As a user, I want to configure custom environment variables per process, so that I can pass credentials or other settings
 27. As a user, I want to set per-process character encoding for output capture, so that non-UTF-8 programs (e.g. GBK on Chinese Windows) display correctly
-28. As a user, I want to mark a process to auto-start when TrayForge launches, so that my essential services come up automatically
+28. As a user, I want to mark a process to auto-start when trayforge launches, so that my essential services come up automatically
 
 ### 配置管理
-29. As a user, I want my configuration to be saved to JSON (compatible with Python TrayForge), so that I can migrate without manual conversion
+29. As a user, I want my configuration to be saved to JSON (compatible with Python trayforge), so that I can migrate without manual conversion
 30. As a user, I want configuration to be backed up automatically before each save, so that I can recover from mistakes
 31. As a user, I want old backups to be pruned when the backup directory exceeds 10MB, so that disk space is not wasted
 
@@ -59,7 +59,7 @@ TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试�
 32. As a user, I want the application to start minimised to the tray (no window flash), so that it stays out of my way
 33. As a user, I want the application to prevent running multiple instances, so that I don't accidentally start a second copy
 34. As a user, I want optional autostart with the operating system, so that my processes are managed from boot
-35. As a user, I want the application to write its own operational log to `trayforge.log`, so that I can debug TrayForge itself if something goes wrong
+35. As a user, I want the application to write its own operational log to `trayforge.log`, so that I can debug trayforge itself if something goes wrong
 
 ## Implementation Decisions
 
@@ -71,7 +71,7 @@ TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试�
 
 ### ProcessManager
 - Start: `dart:io` `Process.start` with `workingDirectory`, `environment`, `runInShell: false`, `PYTHONIOENCODING=utf-8` injected
-- `cmd` is a string in config; split via `shlex.split(posix=False)` before passing to `Process.start` (exact same logic as Python TrayForge)
+- `cmd` is a string in config; split via `shlex.split(posix=False)` before passing to `Process.start` (exact same logic as Python trayforge)
 - Stdout/stderr read as `Stream<List<int>>`, decoded with configured encoding, merged into one line stream (same behaviour as Python `stderr=subprocess.STDOUT`)
 - Output buffering: lines accumulated in per-process buffer, emitted in batches at `output_refresh_ms` intervals (matching Python's drain/flush pattern) — prevents high-frequency UI updates and avoids Shell's internal unbounded memory accumulation
 - Kill: platform-guarded inline commands — `taskkill /t /f /pid <pid>` on Windows (1 line), `pkill -P <pid>` + `process.kill(ProcessSignal.sigkill)` on Linux (2 lines). 3 lines total in ProcessManager, no external dependency
@@ -94,8 +94,8 @@ TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试�
 - Exit from tray menu: `windowManager.destroy()` + stop all processes
 
 ### Process Configuration Schema
-- Compatible with Python TrayForge JSON (`name`, `cwd`, `cmd`, `encoding`, `singleton`, `autostart`, `webui_pattern`, `delete_before_start`, `max_restarts`, `env`)
-- `cmd` is string (not array) — split via `shlex.split(posix=False)` before launch, same logic as Python TrayForge
+- Compatible with Python trayforge JSON (`name`, `cwd`, `cmd`, `encoding`, `singleton`, `autostart`, `webui_pattern`, `delete_before_start`, `max_restarts`, `env`)
+- `cmd` is string (not array) — split via `shlex.split(posix=False)` before launch, same logic as Python trayforge
 - Global fields: `output_history_limit` (default 1000), `output_refresh_ms` (default 500)
 - No `poll_interval_ms` — event-driven, no polling
 - No `cleanup_cwd` — no CWD scanning in Flutter
@@ -124,7 +124,7 @@ TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试�
 ### Output Pipeline
 - ANSI stripping: regex `\x1b\[[0-9;]*[a-zA-Z]` → replace with empty
 - WebUI detection: user's configured regex, capture group 1 → URL
-- System messages (start success, crash, restart limit reached): prefixed with `[TrayForge] ` and pushed to the same output stream
+- System messages (start success, crash, restart limit reached): prefixed with `[trayforge] ` and pushed to the same output stream
 
 ### Logging
 - Application-level log only: `trayforge.log` written to `{data_dir}/logs/`
@@ -135,12 +135,12 @@ TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试�
 - **No config file** (first launch): `ConfigStore.load()` returns null → show welcome screen: "No processes configured" + "Add Process" button → opens Settings
 - **Corrupted config**: JSON parse error or schema mismatch → alert dialog "Config file is corrupted" + OK button → backup corrupted file to `backups/config.<timestamp>.corrupted.json`, fall back to welcome screen
 - **All processes deleted**: after Settings save, if processes list is empty, Dashboard switches to welcome screen (same behaviour as first launch)
-- **Process start failure** (cmd not found, cwd missing): error pushed to output stream as `[TrayForge]` system message — visible in the process card on Dashboard
+- **Process start failure** (cmd not found, cwd missing): error pushed to output stream as `[trayforge]` system message — visible in the process card on Dashboard
 
 ### Configuration Storage
 - Read/write from `TRAYFORGE_DATA_DIR` env var, fallback to platform defaults:
-  - Windows: `%LOCALAPPDATA%/TrayForge/config.json`
-  - Linux: `$XDG_DATA_HOME/TrayForge/config.json` or `~/.local/share/TrayForge/config.json`
+  - Windows: `%LOCALAPPDATA%/trayforge/config.json`
+  - Linux: `$XDG_DATA_HOME/trayforge/config.json` or `~/.local/share/trayforge/config.json`
 - Backup before write: `backups/config.<timestamp>.json`
 - Corrupted config backup: `backups/config.<timestamp>.corrupted.json`
 - Prune: delete oldest files until total < 10MB
@@ -152,7 +152,7 @@ TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试�
 
 ### Autostart
 - Windows: registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
-- Linux: XDG `~/.config/autostart/TrayForge.desktop`
+- Linux: XDG `~/.config/autostart/trayforge.desktop`
 
 ### Cross-Platform
 - `Platform.isWindows` / `Platform.isLinux` guards for platform-specific paths, single instance, autostart
@@ -186,7 +186,7 @@ TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试�
 | `SettingsViewModel` | Dart test | Mock `ConfigStore` |
 
 ### Prior art
-- Python TrayForge has 134 pytest tests (services + CLI + integration)
+- Python trayforge has 134 pytest tests (services + CLI + integration)
 - Testing approach mirrors the Avalonia design's strategy: pure-logic services at unit level, ViewModels synchronous
 
 ### Not tested
@@ -204,7 +204,7 @@ TrayForge 的 Python/tkinter 版本 UI 丑陋、开发效率低、难以调试�
 - `cleanup_cwd` (CWD-based zombie cleanup)
 
 ## Further Notes
-- The existing Python TrayForge codebase at `D:\Projects\Program\TrayForge` serves as functional reference
+- The existing Python trayforge codebase at `D:\Projects\Program\trayforge` serves as functional reference
 - The Avalonia design documents (`docs/superpowers/specs/2025-06-28-avalonia-rewrite-design.md`) serve as architectural reference for ProcessManager and service layer design
 - Three-colour tray icons should reuse or replicate the existing Python `icon.py` generated icons
 - Configuration JSON schema must remain backward-compatible so users can switch between Python and Flutter versions freely

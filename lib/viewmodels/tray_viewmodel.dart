@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:tray_manager/tray_manager.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/services/config_store.dart';
-import 'package:trayforge_flutter/services/process_manager.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/services/config_store.dart';
+import 'package:trayforge/services/process_manager.dart';
 
 /// Three-colour tray icon state.
 enum TrayColor { green, yellow, red }
@@ -43,16 +44,18 @@ class TrayViewModel extends ChangeNotifier {
   TrayColor get color => _color;
 
   /// Returns the icon asset path for the current colour.
-  /// Uses .ico format — required by tray_manager on Windows
-  /// (Win32 LoadImage with IMAGE_ICON does not support PNG).
+  ///
+  /// Uses .ico on Windows (Win32 LoadImage with IMAGE_ICON does not
+  /// support PNG) and .png on Linux (libappindicator / StatusNotifierItem).
   String get iconPath {
+    final ext = Platform.isWindows ? 'ico' : 'png';
     switch (_color) {
       case TrayColor.green:
-        return 'assets/icons/icon-green.ico';
+        return 'assets/icons/icon-green.$ext';
       case TrayColor.yellow:
-        return 'assets/icons/icon-yellow.ico';
+        return 'assets/icons/icon-yellow.$ext';
       case TrayColor.red:
-        return 'assets/icons/icon-red.ico';
+        return 'assets/icons/icon-red.$ext';
     }
   }
 

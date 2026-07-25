@@ -1,13 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/foundation/logger.dart';
+import 'package:trayforge/foundation/logger.dart';
 
 void main() {
   group('Logger.getDataDir', () {
-    test('returns path containing TrayForge', () {
+    test('returns path containing trayforge', () {
       final dir = Logger.getDataDir();
-      expect(dir, contains('TrayForge'));
+      expect(dir, contains('trayforge'));
     });
 
     test('returns a valid path on the current platform', () {

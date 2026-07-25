@@ -6,16 +6,16 @@ import 'package:path/path.dart' as p;
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
-import 'package:trayforge_flutter/foundation/logger.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/screens/dashboard_screen.dart';
-import 'package:trayforge_flutter/services/autostart.dart';
-import 'package:trayforge_flutter/services/config_store.dart';
-import 'package:trayforge_flutter/services/process_manager.dart';
-import 'package:trayforge_flutter/services/single_instance.dart';
-import 'package:trayforge_flutter/viewmodels/dashboard_viewmodel.dart';
-import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
-import 'package:trayforge_flutter/viewmodels/tray_viewmodel.dart';
+import 'package:trayforge/foundation/logger.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/screens/dashboard_screen.dart';
+import 'package:trayforge/services/autostart.dart';
+import 'package:trayforge/services/config_store.dart';
+import 'package:trayforge/services/process_manager.dart';
+import 'package:trayforge/services/single_instance.dart';
+import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
+import 'package:trayforge/viewmodels/settings_viewmodel.dart';
+import 'package:trayforge/viewmodels/tray_viewmodel.dart';
 
 // ---------------------------------------------------------------------------
 // Manual DI — Program.cs style
@@ -42,7 +42,7 @@ Future<void> main() async {
   // Configure window before showing anything.
   await windowManager.waitUntilReadyToShow(
     const WindowOptions(
-      title: 'TrayForge',
+      title: 'trayforge',
       size: Size(800, 600),
       center: true,
     ),
@@ -51,7 +51,7 @@ Future<void> main() async {
   // ---- Services ----
 
   _logger = Logger();
-  _logger.log('TrayForge starting');
+  _logger.log('trayforge starting');
 
   _singleInstance = SingleInstance(logger: _logger);
   if (!_singleInstance.tryAcquire()) {
@@ -108,7 +108,7 @@ Future<void> main() async {
   await windowManager.setPreventClose(true);
   await windowManager.setTitle(DashboardViewModel.appTitle);
 
-  // Set window icon (reused from Python TrayForge).
+  // Set window icon (reused from Python trayforge).
   try {
     await windowManager.setIcon('assets/icon.ico');
   } catch (_) {
@@ -120,7 +120,7 @@ Future<void> main() async {
   // ---- Tray setup ----
 
   await trayManager.setIcon(_trayViewModel.iconPath);
-  await trayManager.setToolTip('TrayForge');
+  await trayManager.setToolTip('trayforge');
   await trayManager.setContextMenu(_trayViewModel.buildMenu());
   trayManager.addListener(_AppTrayListener());
 
@@ -138,7 +138,7 @@ Future<void> main() async {
 
   // ---- Go ----
 
-  runApp(const _TrayForgeApp());
+  runApp(const _trayforgeApp());
 }
 
 // ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ Future<void> _showDashboard() async {
 }
 
 Future<void> _exitApp() async {
-  _logger.log('TrayForge shutting down');
+  _logger.log('trayforge shutting down');
 
   // Stop the wake-signal polling timer immediately so the event loop
   // can wind down after the window is destroyed.
@@ -242,8 +242,8 @@ class _AppTrayListener extends TrayListener {
 // Root widget
 // ---------------------------------------------------------------------------
 
-class _TrayForgeApp extends StatelessWidget {
-  const _TrayForgeApp();
+class _trayforgeApp extends StatelessWidget {
+  const _trayforgeApp();
 
   @override
   Widget build(BuildContext context) {

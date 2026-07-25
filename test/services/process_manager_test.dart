@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/services/config_store.dart';
-import 'package:trayforge_flutter/services/process_manager.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/services/config_store.dart';
+import 'package:trayforge/services/process_manager.dart';
 import '../helpers/test_mocks.dart';
 
 /// Creates an [AppConfig] with a single process for testing with [refreshMs]
@@ -115,7 +115,7 @@ void main() {
         await pm.start('test-svc');
 
         expect(
-          output.any((l) => l.contains('[TrayForge] Process started')),
+          output.any((l) => l.contains('[trayforge] Process started')),
           isTrue,
         );
         expect(
@@ -201,7 +201,7 @@ void main() {
 
         expect(
           output.any((l) =>
-              l.contains('[TrayForge]') && l.contains('Start failed')),
+              l.contains('[trayforge]') && l.contains('Start failed')),
           isTrue,
         );
         expect(pm.getState('test-svc'), ProcState.stopped);
@@ -412,7 +412,7 @@ void main() {
 
         pm.flushNow('test-svc');
 
-        final nonSystem = output.where((l) => !l.startsWith('[TrayForge]'));
+        final nonSystem = output.where((l) => !l.startsWith('[trayforge]'));
         expect(nonSystem.any((l) => l.contains('green text')), isTrue);
         expect(
           nonSystem.any((l) => l.contains('\x1B')),
@@ -500,14 +500,14 @@ void main() {
 
         // Buffered, not yet emitted — no await needed since Timer fires async
         final nonSystem1 = output
-            .where((l) => !l.startsWith('[TrayForge]'))
+            .where((l) => !l.startsWith('[trayforge]'))
             .toList();
         expect(nonSystem1, isEmpty);
 
         fresh.flushNow('test-svc');
 
         final nonSystem2 = output
-            .where((l) => !l.startsWith('[TrayForge]'))
+            .where((l) => !l.startsWith('[trayforge]'))
             .toList();
         expect(nonSystem2.length, 3);
         expect(nonSystem2[0], 'line1');
@@ -540,7 +540,7 @@ void main() {
         fresh.flushNow('test-svc');
 
         final nonSystem = output
-            .where((l) => !l.startsWith('[TrayForge]'))
+            .where((l) => !l.startsWith('[trayforge]'))
             .toList();
         // Only last 3 lines should be kept
         expect(nonSystem.length, 3);
@@ -574,7 +574,7 @@ void main() {
         fresh.flushNow('test-svc');
 
         final nonSystem = output
-            .where((l) => !l.startsWith('[TrayForge]'))
+            .where((l) => !l.startsWith('[trayforge]'))
             .toList();
         expect(nonSystem.length, 2);
         expect(nonSystem, contains('stdout line'));
@@ -704,7 +704,7 @@ void main() {
         expect(fresh.getState('test-svc'), ProcState.crashed);
         expect(
           output.any((l) =>
-              l.contains('[TrayForge]') && l.contains('max restarts')),
+              l.contains('[trayforge]') && l.contains('max restarts')),
           isTrue,
         );
         expect(mockRunner.starts.length, 2,
@@ -772,7 +772,7 @@ void main() {
             reason: 'should not launch if already running');
         expect(
           output.any(
-              (l) => l.contains('[TrayForge]') && l.contains('already running')),
+              (l) => l.contains('[trayforge]') && l.contains('already running')),
           isTrue,
         );
         expect(pm.getState('test-svc'), ProcState.stopped);
@@ -826,7 +826,7 @@ void main() {
         );
 
         // PID 12345 is alive AND startTime matches — orphan from a
-        // previous TrayForge session.
+        // previous trayforge session.
         mockRunner.alivePids.add(12345);
 
         final fresh = ProcessManager(
@@ -1033,7 +1033,7 @@ void main() {
 
         expect(
           output.any((l) =>
-              l.contains('[TrayForge]') && l.contains('path escape')),
+              l.contains('[trayforge]') && l.contains('path escape')),
           isTrue,
         );
 
@@ -1224,7 +1224,7 @@ void main() {
         expect(mockRunner.killedPids, contains(200));
         expect(
           output.any((l) =>
-              l.contains('[TrayForge]') && l.contains('residual process')),
+              l.contains('[trayforge]') && l.contains('residual process')),
           isTrue,
         );
         // Process should have started normally after cleanup.
@@ -1333,7 +1333,7 @@ void main() {
 
         expect(
           output.any((l) =>
-              l.contains('[TrayForge]') && l.contains('killed 3 residual')),
+              l.contains('[trayforge]') && l.contains('killed 3 residual')),
           isTrue,
         );
 

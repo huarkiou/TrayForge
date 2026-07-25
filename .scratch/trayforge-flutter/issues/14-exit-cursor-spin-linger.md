@@ -5,7 +5,7 @@
 1. Clicking "Exit" causes the mouse cursor to spin (busy/waiting).
 2. Exit → immediately restart → exit again causes the main window to hang
    for 10+ seconds before closing.
-3. After exit, `trayforge_flutter.exe` lingers in Task Manager for 10+ seconds
+3. After exit, `trayforge.exe` lingers in Task Manager for 10+ seconds
    before disappearing.
 
 **Root cause (two bugs):**

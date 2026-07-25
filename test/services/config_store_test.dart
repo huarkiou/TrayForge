@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/services/config_store.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/services/config_store.dart';
 
 void main() {
   group('ConfigStore', () {
@@ -45,7 +45,7 @@ void main() {
         expect(result.processes[0].name, 'app');
       });
 
-      test('returns config with correct Python TrayForge JSON keys', () {
+      test('returns config with correct Python trayforge JSON keys', () {
         final config = AppConfig(
           outputHistoryLimit: 250,
           outputRefreshMs: 50,
@@ -137,7 +137,7 @@ void main() {
         expect(content, contains('"name": "test"'));
       });
 
-      test('uses Python TrayForge JSON keys (snake_case)', () {
+      test('uses Python trayforge JSON keys (snake_case)', () {
         final config = AppConfig(
           outputHistoryLimit: 42,
           outputRefreshMs: 7,

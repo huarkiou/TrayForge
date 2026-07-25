@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/services/process_runner.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/services/process_runner.dart';
 
 // ---------------------------------------------------------------------------
 // Mock process handle

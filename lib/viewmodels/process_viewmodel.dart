@@ -3,8 +3,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/services/process_manager.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/services/process_manager.dart';
 
 /// ViewModel for a single managed process.
 ///

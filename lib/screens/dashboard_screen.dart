@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:trayforge_flutter/screens/process_detail_screen.dart';
-import 'package:trayforge_flutter/screens/settings_page.dart';
-import 'package:trayforge_flutter/viewmodels/dashboard_viewmodel.dart';
-import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
-import 'package:trayforge_flutter/widgets/process_card.dart';
+import 'package:trayforge/screens/process_detail_screen.dart';
+import 'package:trayforge/screens/settings_page.dart';
+import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
+import 'package:trayforge/viewmodels/settings_viewmodel.dart';
+import 'package:trayforge/widgets/process_card.dart';
 
 /// Dashboard screen showing process cards or a welcome screen.
 ///
@@ -58,7 +58,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(DashboardViewModel.appTitle),
+        title: const Text('Processes'),
         actions: [
           if (widget.settingsViewModel != null)
             IconButton(

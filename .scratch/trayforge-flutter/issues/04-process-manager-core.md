@@ -13,7 +13,7 @@
 - [x] Output processing: each line → `OutputPipeline.stripAnsi` → `OutputPipeline.tryDetectWebUi` → push to per-process `StreamController<String>`
 - [x] WebUI detection emits an event/callback with (name, url) for the tray and dashboard to consume
 - [x] `ProcessManager.stop(name)` — platform-guarded kill: `taskkill /t /f /pid <pid>` on Windows, `pkill -P <pid>` + `process.kill(ProcessSignal.sigkill)` on Linux, then cleans up PID file
-- [x] System messages (`[TrayForge] Process started`, `[TrayForge] Process stopped`, startup errors) pushed to the output stream
+- [x] System messages (`[trayforge] Process started`, `[trayforge] Process stopped`, startup errors) pushed to the output stream
 - [x] Start failures (cmd not found, cwd missing, encoding error) reported via system messages to output stream
 - [x] Per-process state tracking: `ProcState` transitions (`stopped` → `starting` → `running` / `stopping` → `stopped` / `crashed` / `cooldown`)
 - [x] State change callbacks so ViewModels can react

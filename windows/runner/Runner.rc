@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.trayforge" "\0"
-            VALUE "FileDescription", "trayforge_flutter" "\0"
+            VALUE "FileDescription", "trayforge" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "trayforge_flutter" "\0"
+            VALUE "InternalName", "trayforge" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.trayforge. All rights reserved." "\0"
-            VALUE "OriginalFilename", "trayforge_flutter.exe" "\0"
-            VALUE "ProductName", "trayforge_flutter" "\0"
+            VALUE "OriginalFilename", "trayforge.exe" "\0"
+            VALUE "ProductName", "trayforge" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

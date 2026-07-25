@@ -1,8 +1,8 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
 /// Full-screen form for creating or editing a [ProcessConfig].
 ///

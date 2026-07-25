@@ -1,7 +1,7 @@
 # /// script
 # dependencies = ["Pillow"]
 # ///
-"""Generate tray icons for TrayForge Flutter from Python icon.py logic."""
+"""Generate tray icons for trayforge Flutter from Python icon.py logic."""
 
 from PIL import Image, ImageDraw
 

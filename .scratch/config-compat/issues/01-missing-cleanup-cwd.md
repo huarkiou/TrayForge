@@ -4,7 +4,7 @@ Status: needs-triage
 
 ## Summary
 
-Python 版 TrayForge 的每个 process 配置支持 `cleanup_cwd: true/false`，启动前自动清理 cwd 下的残留文件（锁文件等）。Flutter 版完全没有这个字段及其功能。
+Python 版 trayforge 的每个 process 配置支持 `cleanup_cwd: true/false`，启动前自动清理 cwd 下的残留文件（锁文件等）。Flutter 版完全没有这个字段及其功能。
 
 ## Impact
 

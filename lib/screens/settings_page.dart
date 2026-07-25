@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:trayforge_flutter/foundation/models.dart';
-import 'package:trayforge_flutter/screens/process_edit_page.dart';
-import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
+import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/screens/process_edit_page.dart';
+import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
 /// Settings page with a reorderable list of process configurations.
 ///
