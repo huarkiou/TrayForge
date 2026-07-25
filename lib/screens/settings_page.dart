@@ -24,9 +24,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _vm.addListener(_onChanged);
-    _refreshCtrl = TextEditingController(
-      text: _vm.outputRefreshMs.toString(),
-    );
+    _refreshCtrl = TextEditingController(text: _vm.outputRefreshMs.toString());
     _historyCtrl = TextEditingController(
       text: _vm.outputHistoryLimit.toString(),
     );
@@ -65,10 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, color: Colors.grey),
-        ),
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
         const SizedBox(height: 4),
         Tooltip(
           message: tooltip,
