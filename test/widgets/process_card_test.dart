@@ -371,11 +371,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ProcessCard(
-              viewModel: vm,
-              onTap: () {},
-              dragHandleIndex: 0,
-            ),
+            body: ProcessCard(viewModel: vm, onTap: () {}, dragHandleIndex: 0),
           ),
         ),
       );

@@ -256,10 +256,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
               child: const Text('Delete'),
             ),
           if (widget.isEditing)
-            TextButton(
-              onPressed: _duplicate,
-              child: const Text('Duplicate'),
-            ),
+            TextButton(onPressed: _duplicate, child: const Text('Duplicate')),
           TextButton(
             onPressed: _regexError == null ? _save : null,
             child: const Text('Save'),

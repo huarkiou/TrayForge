@@ -121,10 +121,7 @@ class _Header extends StatelessWidget {
           viewModel: viewModel,
           visualDensity: VisualDensity.compact,
         ),
-        if (editButton != null) ...[
-          const SizedBox(width: 4),
-          editButton,
-        ],
+        if (editButton != null) ...[const SizedBox(width: 4), editButton],
       ],
     );
   }
