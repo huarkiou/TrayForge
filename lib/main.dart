@@ -221,6 +221,7 @@ class _AppTrayListener extends TrayListener {
     // Show the native context menu on right-click.
     // The tray_manager plugin fires this event but does NOT
     // auto-pop the menu -- the app must call popUpContextMenu.
+    // ignore: deprecated_member_use
     trayManager.popUpContextMenu(bringAppToFront: true);
   }
 }
