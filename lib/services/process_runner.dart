@@ -18,7 +18,7 @@ abstract class IProcessHandle {
   bool kill({ProcessSignal signal});
 }
 
-/// Abstract factory that launches processes.
+/// Abstract factory that launches processes and checks OS state.
 ///
 /// The real implementation delegates to [Process.start].
 abstract class IProcessRunner {
@@ -29,6 +29,13 @@ abstract class IProcessRunner {
     Map<String, String>? environment,
     bool runInShell,
   });
+
+  /// Returns `true` if a process with [executableName] is already
+  /// running at the OS level.
+  Future<bool> isProcessRunning(String executableName);
+
+  /// Returns `true` if a process with the given [pid] is running.
+  Future<bool> isPidAlive(int pid);
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +68,48 @@ class RealProcessHandle implements IProcessHandle {
 
 /// Launches real OS processes via [Process.start].
 class RealProcessRunner implements IProcessRunner {
+  @override
+  Future<bool> isProcessRunning(String executableName) async {
+    try {
+      if (Platform.isWindows) {
+        final result = await Process.run(
+          'tasklist',
+          ['/FI', 'IMAGENAME eq $executableName', '/NH'],
+        );
+        return result.stdout.toString().contains(executableName);
+      } else {
+        final result = await Process.run(
+          'pgrep',
+          ['-x', executableName],
+        );
+        return result.exitCode == 0;
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> isPidAlive(int pid) async {
+    try {
+      if (Platform.isWindows) {
+        final result = await Process.run(
+          'tasklist',
+          ['/FI', 'PID eq $pid', '/NH'],
+        );
+        return result.stdout.toString().contains(pid.toString());
+      } else {
+        final result = await Process.run(
+          'kill',
+          ['-0', pid.toString()],
+        );
+        return result.exitCode == 0;
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Future<IProcessHandle> start(
     String executable,

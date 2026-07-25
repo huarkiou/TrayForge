@@ -35,6 +35,11 @@ class ProcessManager {
   final Map<String, IProcessHandle> _handles = {};
   final Map<String, bool> _manualStopFlags = {};
 
+  // Crash restart state
+  final Map<String, DateTime> _lastRestartTime = {};
+  final Map<String, int> _restartCount = {};
+  final Map<String, Timer> _cooldownTimers = {};
+
   // Output pipeline
   final Map<String, StreamController<String>> _outputControllers = {};
   final Map<String, List<String>> _outputBuffers = {};
@@ -55,12 +60,16 @@ class ProcessManager {
     IProcessRunner? processRunner,
     String? dataDir,
     this._logger,
+    this.cooldownDuration = const Duration(seconds: 60),
   })
       // ignore: prefer_initializing_formals
       : _configStore = configStore,
         _processRunner = processRunner ?? RealProcessRunner(),
         _dataDir = dataDir ?? Logger.getDataDir(),
-        _webuiController = StreamController<WebUiEvent>.broadcast(sync: true);
+        _webuiController = StreamController<WebUiEvent>.broadcast(sync: true) {
+    _cleanupStalePidFiles();
+    _autostartAll();
+  }
 
   String get _pidsDir => p.join(_dataDir, 'pids');
 
@@ -122,6 +131,24 @@ class ProcessManager {
       final arguments =
           args.length > 1 ? args.sublist(1) : <String>[];
 
+      // OS-level singleton check
+      final executableName = p.basename(executable);
+      try {
+        final alreadyRunning =
+            await _processRunner.isProcessRunning(executableName);
+        if (alreadyRunning) {
+          _pushSystemMessage(
+              name, 'Process is already running at OS level');
+          _setState(name, ProcState.stopped);
+          return;
+        }
+      } catch (_) {
+        // Best-effort; proceed with launch if check fails.
+      }
+
+      // Delete lock files before start
+      _deleteBeforeStartFiles(name, procConfig);
+
       // Build merged environment
       final env = Map<String, String>.from(Platform.environment);
       env['PYTHONIOENCODING'] = 'utf-8';
@@ -179,9 +206,7 @@ class ProcessManager {
         final wasManual = _manualStopFlags[name] == true;
         _manualStopFlags.remove(name);
         if (!wasManual) {
-          _setState(name, ProcState.crashed);
-          _pushSystemMessage(
-              name, 'Process exited with code $exitCode');
+          _onUnexpectedExit(name, procConfig, exitCode);
         }
         _cleanup(name);
       });
@@ -202,6 +227,10 @@ class ProcessManager {
 
     _setState(name, ProcState.stopping);
     _manualStopFlags[name] = true;
+    _restartCount.remove(name);
+    _lastRestartTime.remove(name);
+    _cooldownTimers[name]?.cancel();
+    _cooldownTimers.remove(name);
     _pushSystemMessage(name, 'Process stopping...');
 
     try {
@@ -227,8 +256,16 @@ class ProcessManager {
     _pushSystemMessage(name, 'Process stopped');
   }
 
+  /// Cooldown duration between crash restarts.
+  ///
+  /// Configurable for testing; defaults to 60 seconds.
+  final Duration cooldownDuration;
+
   /// Releases all resources: timers, subscriptions, controllers.
   void dispose() {
+    for (final t in _cooldownTimers.values) {
+      t.cancel();
+    }
     for (final t in _flushTimers.values) {
       t.cancel();
     }
@@ -244,6 +281,36 @@ class ProcessManager {
     _webuiController.close();
   }
 
+  /// Hot-swaps configuration without restarting already-running processes.
+  ///
+  /// Starts new processes that have `autostart: true` and are not already
+  /// running. Stops processes that are running but no longer present in
+  /// the new config.
+  Future<void> reloadConfig(AppConfig config) async {
+    // Determine which processes are currently running.
+    final runningNames = _states.entries
+        .where((e) => e.value == ProcState.running)
+        .map((e) => e.key)
+        .toSet();
+
+    final newNames = config.processes.map((p) => p.name).toSet();
+
+    // Stop processes that are no longer in the config.
+    for (final name in runningNames.difference(newNames)) {
+      await stop(name);
+    }
+
+    // Save the new config so subsequent _lookupConfig calls see it.
+    _configStore.save(config);
+
+    // Start new autostart processes that aren't already running.
+    for (final proc in config.processes) {
+      if (proc.autostart && !runningNames.contains(proc.name)) {
+        await start(proc.name);
+      }
+    }
+  }
+
   /// Immediately flushes buffered output for [name].
   ///
   /// Exposed so tests can inspect output without waiting for the periodic
@@ -254,8 +321,88 @@ class ProcessManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Private: crash restart
+  // ---------------------------------------------------------------------------
+
+  void _onUnexpectedExit(
+      String name, ProcessConfig procConfig, int exitCode) {
+    _pushSystemMessage(name, 'Process exited with code $exitCode');
+
+    final maxRestarts = procConfig.maxRestarts;
+    if (maxRestarts == null || maxRestarts == 0) {
+      _setState(name, ProcState.crashed);
+      return;
+    }
+
+    final count = (_restartCount[name] ?? 0) + 1;
+    _restartCount[name] = count;
+
+    if (count > maxRestarts) {
+      _setState(name, ProcState.crashed);
+      _pushSystemMessage(
+          name, '$name: max restarts ($maxRestarts) reached, giving up');
+      _restartCount.remove(name);
+      return;
+    }
+
+    final lastTime = _lastRestartTime[name];
+    final now = DateTime.now();
+
+    if (lastTime != null) {
+      final elapsed = now.difference(lastTime);
+      if (elapsed < cooldownDuration) {
+        final remaining = cooldownDuration - elapsed;
+        _setState(name, ProcState.cooldown);
+        _pushSystemMessage(
+            name,
+            'Restart cooldown: next attempt in ${remaining.inSeconds}s '
+            '(attempt $count of $maxRestarts)');
+        _scheduleCooldownRestart(name, procConfig, remaining);
+        return;
+      }
+    }
+
+    _doRestart(name, procConfig, count, maxRestarts);
+  }
+
+  void _doRestart(
+      String name, ProcessConfig procConfig, int count, int maxRestarts) {
+    _lastRestartTime[name] = DateTime.now();
+    _pushSystemMessage(
+        name, 'Auto-restarting (attempt $count of $maxRestarts)...');
+    // Fire-and-forget: schedule a microtask restart so the current
+    // exit handler can finish cleanup before the next start.
+    Future.microtask(() => start(name));
+  }
+
+  void _scheduleCooldownRestart(
+      String name, ProcessConfig procConfig, Duration delay) {
+    _cooldownTimers[name]?.cancel();
+    _cooldownTimers[name] = Timer(delay, () {
+      _cooldownTimers.remove(name);
+      _pushSystemMessage(name, 'Cooldown elapsed, retrying...');
+      _doRestart(
+          name, procConfig, _restartCount[name] ?? 0, procConfig.maxRestarts ?? 0);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Private: helpers
   // ---------------------------------------------------------------------------
+
+  /// Starts all processes with `autostart: true` in the current config.
+  void _autostartAll() {
+    final config = _configStore.load();
+    if (config == null) return;
+
+    for (final proc in config.processes) {
+      if (proc.autostart) {
+        // Fire-and-forget: autostart processes are launched in the
+        // background so construction doesn't block.
+        start(proc.name);
+      }
+    }
+  }
 
   ProcessConfig? _lookupConfig(String name) {
     final config = _configStore.load();
@@ -380,8 +527,107 @@ class ProcessManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Private: delete_before_start
+  // ---------------------------------------------------------------------------
+
+  /// Deletes files listed in [procConfig.deleteBeforeStart].
+  ///
+  /// Each path is resolved relative to [ProcessConfig.cwd]. Paths that
+  /// escape the cwd subtree are blocked and reported via system messages.
+  void _deleteBeforeStartFiles(String name, ProcessConfig procConfig) {
+    final paths = procConfig.deleteBeforeStart;
+    if (paths.isEmpty) return;
+
+    final cwd = procConfig.cwd;
+    if (cwd == null || cwd.isEmpty) {
+      _pushSystemMessage(
+          name, 'delete_before_start requires cwd; skipping file cleanup');
+      return;
+    }
+
+    final cwdCanonical = p.canonicalize(Directory(cwd).absolute.path);
+
+    for (final relativePath in paths) {
+      try {
+        final resolved =
+            p.canonicalize(p.join(cwdCanonical, relativePath));
+
+        // Path escape check: resolved must stay within cwd subtree.
+        if (!resolved.startsWith(cwdCanonical + p.separator) &&
+            resolved != cwdCanonical) {
+          _pushSystemMessage(
+              name, 'delete_before_start: path escape blocked for '
+                  '"$relativePath"');
+          continue;
+        }
+
+        final file = File(resolved);
+        if (file.existsSync()) {
+          try {
+            file.deleteSync();
+            _pushSystemMessage(
+                name, 'delete_before_start: deleted "$relativePath"');
+          } catch (_) {
+            // File may be locked — attempt to kill the holder via PID file.
+            _pushSystemMessage(
+                name,
+                'delete_before_start: could not delete "$relativePath", '
+                    'file may be locked');
+          }
+        }
+      } catch (e) {
+        _pushSystemMessage(
+            name, 'delete_before_start: error processing '
+                '"$relativePath": $e');
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Private: PID file
   // ---------------------------------------------------------------------------
+
+  /// Scans the `pids/` directory on construction and removes stale PID files.
+  ///
+  /// For each `.pid` file, checks if the process is still alive. Stale files
+  /// (process not running) are deleted. This prevents PID-reuse false positives
+  /// across TrayForge restarts.
+  void _cleanupStalePidFiles() {
+    final dir = Directory(_pidsDir);
+    if (!dir.existsSync()) return;
+
+    for (final file in dir.listSync()) {
+      if (file is! File || !file.path.endsWith('.pid')) continue;
+
+      try {
+        final content = file.readAsStringSync();
+        final json = jsonDecode(content) as Map<String, dynamic>;
+        final pid = json['pid'] as int?;
+        if (pid == null) {
+          file.deleteSync();
+          continue;
+        }
+
+        // Check if the process is still alive synchronously — we're in
+        // a constructor, so fire-and-forget the async check. Stale files
+        // are cleaned up but we don't block construction on it.
+        _processRunner.isPidAlive(pid).then((alive) {
+          if (!alive) {
+            try {
+              if (file.existsSync()) file.deleteSync();
+            } catch (_) {
+              // File may have been removed by another cleanup path.
+            }
+          }
+        });
+      } catch (_) {
+        // Corrupted PID file — clean it up.
+        try {
+          file.deleteSync();
+        } catch (_) {}
+      }
+    }
+  }
 
   void _writePidFile(String name, int pid) {
     final dir = Directory(_pidsDir);

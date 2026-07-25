@@ -76,7 +76,16 @@ class _MockProcessHandle implements IProcessHandle {
 class _MockProcessRunner implements IProcessRunner {
   final List<_CapturedStart> starts = [];
   _MockProcessHandle? nextHandle;
+  final List<_MockProcessHandle> _handleQueue = [];
   Exception? throwOnStart;
+  bool isRunning = false;
+  final Set<int> alivePids = {};
+
+  /// Enqueue handles for successive start() calls. Falls back to
+  /// [nextHandle] when the queue is exhausted.
+  void enqueueHandles(List<_MockProcessHandle> handles) {
+    _handleQueue.addAll(handles);
+  }
 
   @override
   Future<IProcessHandle> start(
@@ -94,7 +103,18 @@ class _MockProcessRunner implements IProcessRunner {
       runInShell: runInShell,
     ));
     if (throwOnStart != null) throw throwOnStart!;
+    if (_handleQueue.isNotEmpty) return _handleQueue.removeAt(0);
     return nextHandle!;
+  }
+
+  @override
+  Future<bool> isProcessRunning(String executableName) async {
+    return isRunning;
+  }
+
+  @override
+  Future<bool> isPidAlive(int pid) async {
+    return alivePids.contains(pid);
   }
 }
 
@@ -136,8 +156,11 @@ AppConfig _testConfig({
   int outputRefreshMs = 10,
   int outputHistoryLimit = 100,
   bool singleton = false,
+  bool autostart = false,
   String? cwd,
   String? encoding,
+  int? maxRestarts,
+  List<String>? deleteBeforeStart,
   Map<String, String>? env,
 }) {
   return AppConfig(
@@ -149,8 +172,11 @@ AppConfig _testConfig({
         cmd: cmd,
         webuiPattern: webuiPattern,
         singleton: singleton,
+        autostart: autostart,
         cwd: cwd,
         encoding: encoding,
+        maxRestarts: maxRestarts,
+        deleteBeforeStart: deleteBeforeStart ?? const [],
         env: env,
       ),
     ],
@@ -454,6 +480,7 @@ void main() {
         mockRunner.nextHandle = handle;
 
         await pm.start('test-svc');
+        final startCount = mockRunner.starts.length;
 
         final states = <ProcState>[];
         pm.stateStream('test-svc').listen(states.add);
@@ -467,6 +494,8 @@ void main() {
 
         // Should NOT contain crashed
         expect(states.any((s) => s == ProcState.crashed), isFalse);
+        // Should NOT have restarted
+        expect(mockRunner.starts.length, startCount);
       });
 
       test('exit with non-zero code emits crashed state', () async {
@@ -707,6 +736,461 @@ void main() {
         // New listener — should NOT replay past states (it's a broadcast,
         // not a BehaviorSubject). Verify current state via getState.
         expect(pm.getState('test-svc'), ProcState.running);
+      });
+    });
+
+    // ---- crash restart ----
+
+    group('crash restart', () {
+      test('auto-restarts process on unexpected exit', () async {
+        _writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        final handle1 = _MockProcessHandle(pid: 100);
+        mockRunner.nextHandle = handle1;
+        await fresh.start('test-svc');
+        expect(mockRunner.starts.length, 1);
+        expect(fresh.getState('test-svc'), ProcState.running);
+
+        // Simulate unexpected crash
+        final handle2 = _MockProcessHandle(pid: 101);
+        mockRunner.nextHandle = handle2;
+        handle1.closeOutputs();
+        handle1.completeExit(1);
+
+        // Wait for restart to complete
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        expect(mockRunner.starts.length, 2,
+            reason: 'process should have been restarted');
+        expect(fresh.getState('test-svc'), ProcState.running);
+        fresh.dispose();
+      });
+
+      test('cooldown prevents instant restart within 60 seconds', () async {
+        _writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        final handle1 = _MockProcessHandle(pid: 200);
+        mockRunner.nextHandle = handle1;
+        await fresh.start('test-svc');
+        expect(mockRunner.starts.length, 1);
+
+        // Simulate crash
+        handle1.closeOutputs();
+        handle1.completeExit(1);
+
+        // First restart should happen
+        final handle2 = _MockProcessHandle(pid: 201);
+        mockRunner.nextHandle = handle2;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(mockRunner.starts.length, 2,
+            reason: 'first restart should proceed');
+
+        // Crash again immediately — should enter cooldown
+        handle2.closeOutputs();
+        handle2.completeExit(1);
+
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        // No third start yet — cooldown active
+        expect(mockRunner.starts.length, 2,
+            reason: 'cooldown should prevent instant restart');
+        expect(fresh.getState('test-svc'), ProcState.cooldown);
+
+        fresh.dispose();
+      });
+
+      test('max restarts exhausted → crashed state with system message',
+          () async {
+        _writeConfig(tmpDir, _testConfig(maxRestarts: 1));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        final output = <String>[];
+        fresh.outputStream('test-svc').listen(output.add);
+
+        final handle1 = _MockProcessHandle(pid: 300);
+        mockRunner.nextHandle = handle1;
+        await fresh.start('test-svc');
+
+        // First crash → restart #1 (max_restarts=1, so this is the only restart)
+        final handle2 = _MockProcessHandle(pid: 301);
+        mockRunner.nextHandle = handle2;
+        handle1.closeOutputs();
+        handle1.completeExit(1);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(mockRunner.starts.length, 2);
+
+        // Second crash → max restarts exhausted
+        handle2.closeOutputs();
+        handle2.completeExit(1);
+
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        expect(fresh.getState('test-svc'), ProcState.crashed);
+        expect(
+          output.any((l) =>
+              l.contains('[TrayForge]') && l.contains('max restarts')),
+          isTrue,
+        );
+        expect(mockRunner.starts.length, 2,
+            reason: 'no third start — max restarts reached');
+
+        fresh.dispose();
+      });
+
+      test('restart count resets after successful manual stop + restart',
+          () async {
+        _writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        // Start → crash → restart (count=1)
+        final handle1 = _MockProcessHandle(pid: 400);
+        mockRunner.nextHandle = handle1;
+        await fresh.start('test-svc');
+
+        final handle2 = _MockProcessHandle(pid: 401);
+        mockRunner.nextHandle = handle2;
+        handle1.closeOutputs();
+        handle1.completeExit(1);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(mockRunner.starts.length, 2);
+
+        // Manual stop resets counter
+        await fresh.stop('test-svc');
+
+        // Start fresh → restart count should be 0
+        final handle3 = _MockProcessHandle(pid: 402);
+        mockRunner.nextHandle = handle3;
+        await fresh.start('test-svc');
+        expect(mockRunner.starts.length, 3);
+
+        // Crash → should restart (count fresh)
+        final handle4 = _MockProcessHandle(pid: 403);
+        mockRunner.nextHandle = handle4;
+        handle3.closeOutputs();
+        handle3.completeExit(1);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(mockRunner.starts.length, 4,
+            reason: 'restart count should have reset after manual stop');
+
+        fresh.dispose();
+      });
+    });
+
+    // ---- OS singleton check ----
+
+    group('OS singleton check', () {
+      test('skips start when process is already running at OS level',
+          () async {
+        mockRunner.isRunning = true;
+
+        final output = <String>[];
+        pm.outputStream('test-svc').listen(output.add);
+
+        await pm.start('test-svc');
+
+        expect(mockRunner.starts.length, 0,
+            reason: 'should not launch if already running');
+        expect(
+          output.any(
+              (l) => l.contains('[TrayForge]') && l.contains('already running')),
+          isTrue,
+        );
+        expect(pm.getState('test-svc'), ProcState.stopped);
+      });
+
+      test('starts normally when process is not running at OS level', () async {
+        mockRunner.isRunning = false;
+        mockRunner.nextHandle = _MockProcessHandle();
+
+        await pm.start('test-svc');
+
+        expect(mockRunner.starts.length, 1);
+        expect(pm.getState('test-svc'), ProcState.running);
+      });
+    });
+
+    // ---- PID file startup cleanup ----
+
+    group('PID file startup cleanup', () {
+      test('cleans up stale PID files on construction', () async {
+        // Write a stale PID file before constructing ProcessManager.
+        final pidsDir = Directory('${tmpDir.path}/pids');
+        pidsDir.createSync(recursive: true);
+        File('${pidsDir.path}/stale.pid').writeAsStringSync(
+          '{"pid":99999,"startTime":"2000-01-01T00:00:00.000"}',
+        );
+
+        // Constructing ProcessManager triggers async cleanup.
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        // Wait for the async isPidAlive check to resolve.
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        // Stale PID file should be gone.
+        expect(File('${pidsDir.path}/stale.pid').existsSync(), isFalse);
+
+        fresh.dispose();
+      });
+
+      test('does not delete PID files for running processes', () async {
+        // Start a process so a real PID file gets written.
+        mockRunner.nextHandle = _MockProcessHandle(pid: 12345);
+        await pm.start('test-svc');
+
+        final pidFile = File('${tmpDir.path}/pids/test-svc.pid');
+        expect(pidFile.existsSync(), isTrue);
+
+        pm.dispose();
+
+        // Mark PID 12345 as alive so cleanup preserves the file.
+        mockRunner.alivePids.add(12345);
+
+        // Create a fresh ProcessManager — the PID file for test-svc
+        // should survive because the mock says the process is running.
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        // Wait for the async isPidAlive check.
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        // PID file still exists (process is "alive").
+        expect(pidFile.existsSync(), isTrue);
+
+        fresh.dispose();
+      });
+    });
+
+    // ---- delete_before_start ----
+
+    group('delete_before_start', () {
+      test('deletes files before start', () async {
+        final cwdDir = Directory('${tmpDir.path}/app');
+        cwdDir.createSync(recursive: true);
+        final lockFile = File('${cwdDir.path}/app.lock');
+        lockFile.writeAsStringSync('stale lock');
+        expect(lockFile.existsSync(), isTrue);
+
+        _writeConfig(tmpDir, _testConfig(
+          cwd: cwdDir.path,
+          deleteBeforeStart: ['app.lock'],
+        ));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        mockRunner.nextHandle = _MockProcessHandle();
+        await fresh.start('test-svc');
+
+        expect(lockFile.existsSync(), isFalse,
+            reason: 'delete_before_start file should be deleted');
+
+        fresh.dispose();
+      });
+
+      test('blocks path escape attempts', () async {
+        _writeConfig(tmpDir, _testConfig(
+          cwd: '${tmpDir.path}/app',
+          deleteBeforeStart: ['../escape.txt'],
+        ));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        final output = <String>[];
+        fresh.outputStream('test-svc').listen(output.add);
+
+        mockRunner.nextHandle = _MockProcessHandle();
+        await fresh.start('test-svc');
+
+        expect(
+          output.any((l) =>
+              l.contains('[TrayForge]') && l.contains('path escape')),
+          isTrue,
+        );
+
+        fresh.dispose();
+      });
+
+      test('skips delete_before_start when cwd is null', () async {
+        _writeConfig(tmpDir, _testConfig(
+          cwd: null,
+          deleteBeforeStart: ['app.lock'],
+        ));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        mockRunner.nextHandle = _MockProcessHandle();
+        // Should not throw.
+        await fresh.start('test-svc');
+        expect(fresh.getState('test-svc'), ProcState.running);
+
+        fresh.dispose();
+      });
+    });
+
+    // ---- autostart ----
+
+    group('autostart', () {
+      test('starts autostart processes on construction', () async {
+        // Write a config with two processes: one autostart, one not.
+        final testConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'auto-svc', cmd: 'auto.exe', autostart: true),
+            ProcessConfig(name: 'manual-svc', cmd: 'manual.exe'),
+            ProcessConfig(name: 'also-auto', cmd: 'also.exe', autostart: true),
+          ],
+        );
+
+        // Write config via ConfigStore so load() returns it.
+        _writeConfig(tmpDir, testConfig);
+
+        mockRunner.enqueueHandles([
+          _MockProcessHandle(pid: 10),
+          _MockProcessHandle(pid: 11),
+        ]);
+
+        // Construction triggers autostart.
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        // Wait for async start() calls to complete.
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        expect(mockRunner.starts.length, 2);
+        final started = mockRunner.starts.map((s) => s.executable).toSet();
+        expect(started, contains('auto.exe'));
+        expect(started, contains('also.exe'));
+        expect(started, isNot(contains('manual.exe')));
+
+        fresh.dispose();
+      });
+
+      test('skips autostart when no config is loaded', () async {
+        // Don't write any config.
+        configStore.dispose();
+        final emptyDir = Directory.systemTemp.createTempSync('trayforge_pm_empty_');
+        final emptyStore = ConfigStore(dataDir: emptyDir.path);
+
+        final fresh = ProcessManager(
+          configStore: emptyStore,
+          processRunner: mockRunner,
+          dataDir: emptyDir.path,
+        );
+
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        expect(mockRunner.starts.length, 0,
+            reason: 'no config → no autostart');
+
+        fresh.dispose();
+        emptyStore.dispose();
+        emptyDir.deleteSync(recursive: true);
+      });
+    });
+
+    // ---- reloadConfig ----
+
+    group('reloadConfig', () {
+      test('starts new autostart processes and stops removed ones', () async {
+        _writeConfig(tmpDir, _testConfig(name: 'keep-me', autostart: true));
+
+        mockRunner.nextHandle = _MockProcessHandle(pid: 800);
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(mockRunner.starts.length, 1);
+        expect(fresh.getState('keep-me'), ProcState.running);
+
+        // Reload: remove 'keep-me', add 'new-svc' with autostart.
+        mockRunner.nextHandle = _MockProcessHandle(pid: 801);
+        await fresh.reloadConfig(AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'new-svc', cmd: 'new.exe', autostart: true),
+          ],
+        ));
+
+        // 'keep-me' should have been stopped.
+        expect(fresh.getState('keep-me'), ProcState.stopped);
+        // 'new-svc' should have been started.
+        expect(fresh.getState('new-svc'), ProcState.running);
+        // Total starts: 1 (autostart) + 1 (reload new-svc) = 2
+        expect(mockRunner.starts.length, 2);
+
+        fresh.dispose();
+      });
+
+      test('leaves running processes untouched on reload', () async {
+        _writeConfig(tmpDir, _testConfig(name: 'svc1', autostart: true));
+
+        mockRunner.nextHandle = _MockProcessHandle(pid: 900);
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(fresh.getState('svc1'), ProcState.running);
+
+        // Reload with same config — svc1 should stay running.
+        final output = <String>[];
+        fresh.outputStream('svc1').listen(output.add);
+
+        mockRunner.nextHandle = _MockProcessHandle(pid: 901);
+        await fresh.reloadConfig(AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
+          ],
+        ));
+
+        expect(fresh.getState('svc1'), ProcState.running);
+        // No second start call.
+        expect(mockRunner.starts.length, 1);
+
+        fresh.dispose();
       });
     });
   });
