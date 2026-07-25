@@ -35,10 +35,7 @@ class ProcessCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Header(
-                    viewModel: viewModel,
-                    scaffoldMessenger: ScaffoldMessenger.of(context),
-                  ),
+                  _Header(viewModel: viewModel),
                   const SizedBox(height: 8),
                   _OutputPreview(viewModel: viewModel),
                 ],
@@ -54,15 +51,12 @@ class ProcessCard extends StatelessWidget {
 /// Header row: status dot, name, WebUI button, toggle button.
 class _Header extends StatelessWidget {
   final ProcessViewModel viewModel;
-  final ScaffoldMessengerState scaffoldMessenger;
 
-  const _Header({
-    required this.viewModel,
-    required this.scaffoldMessenger,
-  });
+  const _Header({required this.viewModel});
 
   @override
   Widget build(BuildContext context) {
+    final messenger = ScaffoldMessenger.of(context);
     return Row(
       children: [
         _StatusDot(state: viewModel.state),
@@ -85,7 +79,7 @@ class _Header extends StatelessWidget {
               Clipboard.setData(
                 ClipboardData(text: viewModel.webuiUrl.toString()),
               );
-              scaffoldMessenger.showSnackBar(
+              messenger.showSnackBar(
                 const SnackBar(
                   content: Text('URL copied'),
                   duration: Duration(seconds: 2),

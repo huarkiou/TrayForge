@@ -53,74 +53,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.viewModel,
-      builder: (context, _) {
-        if (widget.viewModel.isEmpty) {
-          return _buildWelcomeScreen(context);
-        }
-        return _buildDashboard(context);
-      },
-    );
-  }
-
-  Widget _buildWelcomeScreen(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(DashboardViewModel.appTitle),
       ),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'No processes configured',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () {
-                // TODO: navigate to Settings page when implemented.
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Settings not yet implemented'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Add Process'),
-            ),
-          ],
-        ),
+      body: ListenableBuilder(
+        listenable: widget.viewModel,
+        builder: (context, _) {
+          if (widget.viewModel.isEmpty) {
+            return _buildWelcomeBody(context);
+          }
+          return _buildDashboardBody(context);
+        },
       ),
     );
   }
 
-  Widget _buildDashboard(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(DashboardViewModel.appTitle),
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: widget.viewModel.processViewModels.length,
-        itemBuilder: (context, index) {
-          final vm = widget.viewModel.processViewModels[index];
-          return ProcessCard(
-            viewModel: vm,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ProcessDetailPage(processName: vm.name),
+  Widget _buildWelcomeBody(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'No processes configured',
+            style: TextStyle(fontSize: 18, color: Colors.grey),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () {
+              // TODO: navigate to Settings page when implemented.
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Settings not yet implemented'),
+                  duration: Duration(seconds: 2),
                 ),
               );
             },
-          );
-        },
+            icon: const Icon(Icons.add),
+            label: const Text('Add Process'),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildDashboardBody(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: widget.viewModel.processViewModels.length,
+      itemBuilder: (context, index) {
+        final vm = widget.viewModel.processViewModels[index];
+        return ProcessCard(
+          viewModel: vm,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    ProcessDetailPage(processName: vm.name),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

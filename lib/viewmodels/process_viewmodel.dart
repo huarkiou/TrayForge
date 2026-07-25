@@ -74,7 +74,13 @@ class ProcessViewModel extends ChangeNotifier {
 
   void _onState(ProcState state) {
     _state = state;
-    _optimisticState = null;
+    // Only clear the optimistic state when the transition is complete —
+    // i.e. on terminal states (running, stopped, crashed, cooldown), not
+    // on intermediate states (starting, stopping). This ensures the spinner
+    // stays visible until the ProcessManager confirms success or failure.
+    if (state != ProcState.starting && state != ProcState.stopping) {
+      _optimisticState = null;
+    }
     notifyListeners();
   }
 
