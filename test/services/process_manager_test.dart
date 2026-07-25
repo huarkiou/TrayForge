@@ -812,7 +812,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        await fresh.settle();
+        await fresh.init();
 
         // Stale PID file should be gone.
         expect(File('${pidsDir.path}/stale.pid').existsSync(), isFalse);
@@ -841,7 +841,7 @@ void main() {
             dataDir: tmpDir.path,
           );
 
-          await fresh.settle();
+          await fresh.init();
 
           // Orphan should be killed and its PID file deleted.
           expect(mockRunner.killedPids, contains(12345));
@@ -870,7 +870,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        await fresh.settle();
+        await fresh.init();
 
         // PID file should be deleted — startTime mismatch indicates reuse.
         expect(File('${pidsDir.path}/zombie.pid').existsSync(), isFalse);
@@ -898,7 +898,7 @@ void main() {
             dataDir: tmpDir.path,
           );
 
-          await fresh.settle();
+          await fresh.init();
 
           // Orphan should have been killed.
           expect(mockRunner.killedPids, contains(42));
@@ -928,7 +928,7 @@ void main() {
             dataDir: tmpDir.path,
           );
 
-          await fresh.settle();
+          await fresh.init();
 
           // killPid should NOT have been called — startTime mismatch means
           // PID was reused, not an orphan.
@@ -968,7 +968,7 @@ void main() {
             dataDir: tmpDir.path,
           );
 
-          await fresh.settle();
+          await fresh.init();
 
           // Orphan was killed.
           expect(mockRunner.killedPids, contains(99));
@@ -1107,7 +1107,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        await fresh.settle();
+        await fresh.init();
 
         expect(mockRunner.starts.length, 2);
         final started = mockRunner.starts.map((s) => s.executable).toSet();
@@ -1132,7 +1132,7 @@ void main() {
           dataDir: emptyDir.path,
         );
 
-        await fresh.settle();
+        await fresh.init();
 
         expect(mockRunner.starts.length, 0, reason: 'no config → no autostart');
 
@@ -1154,7 +1154,7 @@ void main() {
           processRunner: mockRunner,
           dataDir: tmpDir.path,
         );
-        await fresh.settle();
+        await fresh.init();
         expect(mockRunner.starts.length, 1);
         expect(fresh.getState('keep-me'), ProcState.running);
 
@@ -1189,7 +1189,7 @@ void main() {
           processRunner: mockRunner,
           dataDir: tmpDir.path,
         );
-        await fresh.settle();
+        await fresh.init();
         expect(fresh.getState('svc1'), ProcState.running);
 
         // Reload with same config — svc1 should stay running.

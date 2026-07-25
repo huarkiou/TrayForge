@@ -18,5 +18,17 @@ class StatusDot extends StatelessWidget {
     );
   }
 
-  Color get _color => state.statusColor;
+  Color get _color {
+    switch (state) {
+      case ProcState.running:
+        return Colors.green;
+      case ProcState.crashed:
+        return Colors.red;
+      case ProcState.stopped:
+      case ProcState.starting:
+      case ProcState.stopping:
+      case ProcState.cooldown:
+        return Colors.grey;
+    }
+  }
 }

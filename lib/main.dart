@@ -64,6 +64,7 @@ Future<void> main() async {
   final configCorrupted = configExists && config == null;
 
   _processManager = ProcessManager(configStore: _configStore, logger: _logger);
+  await _processManager.init();
 
   _autostart = Autostart(logger: _logger);
 

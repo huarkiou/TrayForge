@@ -1,5 +1,9 @@
 ## Agent skills
 
+### Format before commit
+
+Always run `dart format lib/ test/` then `dart analyze lib/ test/` before committing. Both must pass.
+
 ### Issue tracker
 
 Local markdown: issues live as files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
