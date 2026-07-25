@@ -9,8 +9,8 @@ auto-restart on crash, and colour-coded tray icon at a glance.
 ## Features
 
 - **System tray icon** — green when all processes are running, yellow when partially
-  running, red when none are. Double-click the tray icon (or right-click → Dashboard)
-  to open the management window.
+  running, red when none are. Single-click the tray icon to toggle the management
+  window; right-click for the context menu.
 - **Start / stop processes** from the tray menu or the dashboard.
 - **Inline process editing** — add, edit, duplicate, delete, and reorder processes
   directly from the Dashboard — no need to open Settings.
