@@ -76,8 +76,8 @@ class _Header extends StatelessWidget {
         ? ReorderableDragStartListener(
             index: dragHandleIndex!,
             child: const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.drag_handle, color: Colors.grey),
+              padding: EdgeInsets.only(left: 12, right: 4),
+              child: Icon(Icons.drag_handle, color: Colors.grey, size: 20),
             ),
           )
         : null;
@@ -103,7 +103,7 @@ class _Header extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (viewModel.webuiUrl != null)
+        if (viewModel.webuiUrl != null) ...[
           IconButton(
             icon: const Icon(Icons.content_copy, size: 20),
             tooltip: 'Copy URL to clipboard',
@@ -115,12 +115,16 @@ class _Header extends StatelessWidget {
             },
             visualDensity: VisualDensity.compact,
           ),
-        const SizedBox(width: 4),
+          const SizedBox(width: 4),
+        ],
         ToggleButton(
           viewModel: viewModel,
           visualDensity: VisualDensity.compact,
         ),
-        if (editButton != null) editButton,
+        if (editButton != null) ...[
+          const SizedBox(width: 4),
+          editButton,
+        ],
       ],
     );
   }
