@@ -1,114 +1,11 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge_flutter/foundation/models.dart';
 import 'package:trayforge_flutter/services/config_store.dart';
 import 'package:trayforge_flutter/services/process_manager.dart';
-import 'package:trayforge_flutter/services/process_runner.dart';
 import 'package:trayforge_flutter/viewmodels/process_viewmodel.dart';
-
-// ---------------------------------------------------------------------------
-// Mock process handle (copied from process_manager_test)
-// ---------------------------------------------------------------------------
-
-class _MockProcessHandle implements IProcessHandle {
-  @override
-  final int pid;
-
-  final StreamController<List<int>> _stdoutController =
-      StreamController<List<int>>(sync: true);
-  final StreamController<List<int>> _stderrController =
-      StreamController<List<int>>(sync: true);
-  final Completer<int> _exitCompleter = Completer<int>();
-
-  bool killed = false;
-
-  _MockProcessHandle({this.pid = 12345});
-
-  @override
-  Stream<List<int>> get stdout => _stdoutController.stream;
-
-  @override
-  Stream<List<int>> get stderr => _stderrController.stream;
-
-  @override
-  Future<int> get exitCode => _exitCompleter.future;
-
-  @override
-  bool kill({ProcessSignal signal = ProcessSignal.sigkill}) {
-    killed = true;
-    if (!_exitCompleter.isCompleted) {
-      _exitCompleter.complete(-1);
-    }
-    return true;
-  }
-
-  void emitStdout(String text) {
-    _stdoutController.add(utf8.encode(text));
-  }
-
-  void emitStderr(String text) {
-    _stderrController.add(utf8.encode(text));
-  }
-
-  void closeOutputs() {
-    _stdoutController.close();
-    _stderrController.close();
-  }
-
-  void completeExit(int code) {
-    if (!_exitCompleter.isCompleted) {
-      _exitCompleter.complete(code);
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Mock process runner
-// ---------------------------------------------------------------------------
-
-class _MockProcessRunner implements IProcessRunner {
-  _MockProcessHandle? nextHandle;
-  Exception? throwOnStart;
-
-  @override
-  Future<IProcessHandle> start(
-    String executable,
-    List<String> arguments, {
-    String? workingDirectory,
-    Map<String, String>? environment,
-    bool runInShell = false,
-  }) async {
-    if (throwOnStart != null) throw throwOnStart!;
-    return nextHandle!;
-  }
-
-  @override
-  Future<bool> isProcessRunning(String executableName) async => false;
-
-  @override
-  Future<bool> isPidAlive(int pid) async => false;
-
-  @override
-  Future<DateTime?> getProcessStartTime(int pid) async => null;
-
-  @override
-  Future<bool> killPid(int pid) async => true;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-void _writeConfig(Directory dir, AppConfig config) {
-  final encoded =
-      const JsonEncoder.withIndent('  ').convert(config.toJson());
-  File('${dir.path}/config.json')
-    ..parent.createSync(recursive: true)
-    ..writeAsStringSync(encoded, encoding: utf8, flush: true);
-}
+import '../helpers/test_mocks.dart';
 
 AppConfig _testConfig({
   String name = 'test-svc',
@@ -139,15 +36,15 @@ void main() {
   group('ProcessViewModel', () {
     late Directory tmpDir;
     late ConfigStore configStore;
-    late _MockProcessRunner mockRunner;
-    late _MockProcessHandle mockHandle;
+    late MockProcessRunner mockRunner;
+    late MockProcessHandle mockHandle;
     late ProcessManager manager;
 
     setUp(() {
       tmpDir = Directory.systemTemp.createTempSync('tf_test_');
       configStore = ConfigStore(dataDir: tmpDir.path);
-      mockRunner = _MockProcessRunner();
-      mockHandle = _MockProcessHandle(pid: 42);
+      mockRunner = MockProcessRunner();
+      mockHandle = MockProcessHandle(pid: 42);
       mockRunner.nextHandle = mockHandle;
     });
 
@@ -166,7 +63,7 @@ void main() {
     // ---- State mirroring ----
 
     test('mirrors initial state from ProcessManager', () {
-      _writeConfig(tmpDir, _testConfig());
+      writeConfig(tmpDir, _testConfig());
       manager = createManager();
 
       final vm = ProcessViewModel(
@@ -179,8 +76,8 @@ void main() {
     });
 
     test('mirrors state transitions from ProcessManager', () async {
-      _writeConfig(tmpDir, _testConfig());
-      mockRunner.nextHandle = _MockProcessHandle(pid: 52);
+      writeConfig(tmpDir, _testConfig());
+      mockRunner.nextHandle = MockProcessHandle(pid: 52);
       manager = createManager();
 
       final vm = ProcessViewModel(
@@ -202,8 +99,8 @@ void main() {
     // ---- Output accumulation ----
 
     test('accumulates output lines from ProcessManager', () async {
-      _writeConfig(tmpDir, _testConfig(outputRefreshMs: 10));
-      final handle = _MockProcessHandle(pid: 53);
+      writeConfig(tmpDir, _testConfig(outputRefreshMs: 10));
+      final handle = MockProcessHandle(pid: 53);
       mockRunner.nextHandle = handle;
       manager = createManager();
 
@@ -227,11 +124,11 @@ void main() {
     });
 
     test('trims output buffer when exceeding history limit', () async {
-      _writeConfig(tmpDir, _testConfig(
+      writeConfig(tmpDir, _testConfig(
         outputRefreshMs: 10,
         outputHistoryLimit: 5,
       ));
-      final handle = _MockProcessHandle(pid: 54);
+      final handle = MockProcessHandle(pid: 54);
       mockRunner.nextHandle = handle;
       manager = createManager();
 
@@ -258,11 +155,11 @@ void main() {
     // ---- WebUI detection ----
 
     test('detects WebUI URL from ProcessManager events', () async {
-      _writeConfig(tmpDir, _testConfig(
+      writeConfig(tmpDir, _testConfig(
         outputRefreshMs: 10,
         webuiPattern: r'(http://[\d.:]+)',
       ));
-      final handle = _MockProcessHandle(pid: 55);
+      final handle = MockProcessHandle(pid: 55);
       mockRunner.nextHandle = handle;
       manager = createManager();
 
@@ -282,7 +179,7 @@ void main() {
     });
 
     test('ignores WebUI events for other processes', () async {
-      _writeConfig(tmpDir, AppConfig(
+      writeConfig(tmpDir, AppConfig(
         outputRefreshMs: 10,
         outputHistoryLimit: 100,
         processes: [
@@ -307,7 +204,7 @@ void main() {
       );
 
       // Start svc-a, emit a WebUI line — svc-b should not see it.
-      final mockHandleA = _MockProcessHandle(pid: 1);
+      final mockHandleA = MockProcessHandle(pid: 1);
       mockRunner.nextHandle = mockHandleA;
       await manager.start('svc-a');
       mockHandleA.emitStdout('WebUI at http://127.0.0.1:3000\n');
@@ -320,8 +217,8 @@ void main() {
     // ---- Optimistic toggle ----
 
     test('toggle starts stopped process', () async {
-      _writeConfig(tmpDir, _testConfig());
-      mockRunner.nextHandle = _MockProcessHandle(pid: 42);
+      writeConfig(tmpDir, _testConfig());
+      mockRunner.nextHandle = MockProcessHandle(pid: 42);
       manager = createManager();
 
       final vm = ProcessViewModel(
@@ -347,8 +244,8 @@ void main() {
     });
 
     test('toggle stops running process', () async {
-      _writeConfig(tmpDir, _testConfig());
-      mockRunner.nextHandle = _MockProcessHandle(pid: 43);
+      writeConfig(tmpDir, _testConfig());
+      mockRunner.nextHandle = MockProcessHandle(pid: 43);
       manager = createManager();
 
       final vm = ProcessViewModel(
@@ -369,8 +266,8 @@ void main() {
     });
 
     test('toggle is idempotent while starting', () async {
-      _writeConfig(tmpDir, _testConfig());
-      mockRunner.nextHandle = _MockProcessHandle(pid: 44);
+      writeConfig(tmpDir, _testConfig());
+      mockRunner.nextHandle = MockProcessHandle(pid: 44);
       manager = createManager();
 
       final vm = ProcessViewModel(
@@ -390,7 +287,7 @@ void main() {
     // ---- dispose ----
 
     test('dispose cancels subscriptions', () async {
-      _writeConfig(tmpDir, _testConfig());
+      writeConfig(tmpDir, _testConfig());
       manager = createManager();
 
       final vm = ProcessViewModel(
@@ -408,7 +305,7 @@ void main() {
     // ---- outputLines is unmodifiable ----
 
     test('outputLines returns an unmodifiable list', () {
-      _writeConfig(tmpDir, _testConfig());
+      writeConfig(tmpDir, _testConfig());
       manager = createManager();
 
       final vm = ProcessViewModel(

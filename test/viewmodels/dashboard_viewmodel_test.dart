@@ -1,53 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge_flutter/foundation/models.dart';
 import 'package:trayforge_flutter/services/config_store.dart';
 import 'package:trayforge_flutter/services/process_manager.dart';
-import 'package:trayforge_flutter/services/process_runner.dart';
 import 'package:trayforge_flutter/viewmodels/dashboard_viewmodel.dart';
-
-// ---------------------------------------------------------------------------
-// Mock process runner
-// ---------------------------------------------------------------------------
-
-class _MockProcessRunner implements IProcessRunner {
-  @override
-  Future<IProcessHandle> start(
-    String executable,
-    List<String> arguments, {
-    String? workingDirectory,
-    Map<String, String>? environment,
-    bool runInShell = false,
-  }) async {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<bool> isProcessRunning(String executableName) async => false;
-
-  @override
-  Future<bool> isPidAlive(int pid) async => false;
-
-  @override
-  Future<DateTime?> getProcessStartTime(int pid) async => null;
-
-  @override
-  Future<bool> killPid(int pid) async => true;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-void _writeConfig(Directory dir, AppConfig config) {
-  final encoded =
-      const JsonEncoder.withIndent('  ').convert(config.toJson());
-  File('${dir.path}/config.json')
-    ..parent.createSync(recursive: true)
-    ..writeAsStringSync(encoded, encoding: utf8, flush: true);
-}
+import '../helpers/test_mocks.dart';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -64,7 +22,7 @@ void main() {
       configStore = ConfigStore(dataDir: tmpDir.path);
       manager = ProcessManager(
         configStore: configStore,
-        processRunner: _MockProcessRunner(),
+        processRunner: MockProcessRunner(),
         dataDir: tmpDir.path,
       );
     });
@@ -86,7 +44,7 @@ void main() {
     });
 
     test('isEmpty is true when config has no processes', () {
-      _writeConfig(tmpDir, AppConfig(processes: []));
+      writeConfig(tmpDir, AppConfig(processes: []));
       // Reload config since manager already loaded during setup.
       final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
@@ -101,7 +59,7 @@ void main() {
     // ---- Populated state ----
 
     test('creates ProcessViewModel for each configured process', () {
-      _writeConfig(
+      writeConfig(
         tmpDir,
         AppConfig(
           outputHistoryLimit: 500,
@@ -127,7 +85,7 @@ void main() {
     // ---- Config changed ----
 
     test('rebuilds when configChanged fires', () async {
-      _writeConfig(
+      writeConfig(
         tmpDir,
         AppConfig(processes: [
           const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
@@ -156,7 +114,7 @@ void main() {
     });
 
     test('switches to empty when config removes all processes', () async {
-      _writeConfig(
+      writeConfig(
         tmpDir,
         AppConfig(processes: [
           const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
@@ -182,7 +140,7 @@ void main() {
     // ---- Corrupted config flag ----
 
     test('configCorrupted defaults to false', () {
-      _writeConfig(tmpDir, AppConfig(processes: []));
+      writeConfig(tmpDir, AppConfig(processes: []));
       final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
       final vm = DashboardViewModel(
@@ -217,7 +175,7 @@ void main() {
     // ---- Dispose ----
 
     test('dispose disposes child view models', () {
-      _writeConfig(
+      writeConfig(
         tmpDir,
         AppConfig(processes: [
           const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),

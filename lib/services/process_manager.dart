@@ -232,16 +232,7 @@ class ProcessManager {
     }
     _pushSystemMessage(name, 'Process stopping...');
 
-    try {
-      await _processRunner.killPid(handle.pid);
-    } catch (e) {
-      _log('Error killing process tree for $name: $e');
-      try {
-        handle.kill(signal: ProcessSignal.sigkill);
-      } catch (_) {
-        // Process may have already exited.
-      }
-    }
+    await _processRunner.killPid(handle.pid);
 
     _cleanup(name);
     _setState(name, ProcState.stopped);

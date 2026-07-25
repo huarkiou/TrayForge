@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,167 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge_flutter/foundation/models.dart';
 import 'package:trayforge_flutter/services/config_store.dart';
 import 'package:trayforge_flutter/services/process_manager.dart';
-import 'package:trayforge_flutter/services/process_runner.dart';
-
-// ---------------------------------------------------------------------------
-// Mock process handle
-// ---------------------------------------------------------------------------
-
-class _MockProcessHandle implements IProcessHandle {
-  @override
-  final int pid;
-
-  final StreamController<List<int>> _stdoutController =
-      StreamController<List<int>>(sync: true);
-  final StreamController<List<int>> _stderrController =
-      StreamController<List<int>>(sync: true);
-  final Completer<int> _exitCompleter = Completer<int>();
-
-  bool killed = false;
-  ProcessSignal? lastSignal;
-
-  _MockProcessHandle({this.pid = 12345});
-
-  @override
-  Stream<List<int>> get stdout => _stdoutController.stream;
-
-  @override
-  Stream<List<int>> get stderr => _stderrController.stream;
-
-  @override
-  Future<int> get exitCode => _exitCompleter.future;
-
-  @override
-  bool kill({ProcessSignal signal = ProcessSignal.sigkill}) {
-    killed = true;
-    lastSignal = signal;
-    // Simulate process exiting after kill
-    if (!_exitCompleter.isCompleted) {
-      _exitCompleter.complete(-1);
-    }
-    return true;
-  }
-
-  // Test helpers ----------------------------------------------------------
-
-  void emitStdout(String text) {
-    _stdoutController.add(utf8.encode(text));
-  }
-
-  void emitStderr(String text) {
-    _stderrController.add(utf8.encode(text));
-  }
-
-  void closeOutputs() {
-    _stdoutController.close();
-    _stderrController.close();
-  }
-
-  void completeExit(int code) {
-    if (!_exitCompleter.isCompleted) {
-      _exitCompleter.complete(code);
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Mock process runner
-// ---------------------------------------------------------------------------
-
-class _MockProcessRunner implements IProcessRunner {
-  final List<_CapturedStart> starts = [];
-  _MockProcessHandle? nextHandle;
-  final List<_MockProcessHandle> _handleQueue = [];
-  Exception? throwOnStart;
-  bool isRunning = false;
-  final Set<int> alivePids = {};
-  final List<int> killedPids = [];
-  bool killPidResult = true;
-
-  /// Enqueue handles for successive start() calls. Falls back to
-  /// [nextHandle] when the queue is exhausted.
-  void enqueueHandles(List<_MockProcessHandle> handles) {
-    _handleQueue.addAll(handles);
-  }
-
-  @override
-  Future<IProcessHandle> start(
-    String executable,
-    List<String> arguments, {
-    String? workingDirectory,
-    Map<String, String>? environment,
-    bool runInShell = false,
-  }) async {
-    starts.add(_CapturedStart(
-      executable: executable,
-      arguments: arguments,
-      workingDirectory: workingDirectory,
-      environment: environment,
-      runInShell: runInShell,
-    ));
-    if (throwOnStart != null) throw throwOnStart!;
-    if (_handleQueue.isNotEmpty) return _handleQueue.removeAt(0);
-    return nextHandle!;
-  }
-
-  @override
-  Future<bool> isProcessRunning(String executableName) async {
-    return isRunning;
-  }
-
-  @override
-  Future<bool> isPidAlive(int pid) async {
-    return alivePids.contains(pid);
-  }
-
-  @override
-  Future<DateTime?> getProcessStartTime(int pid) async {
-    // Return a fixed start time for alive PIDs; null otherwise.
-    // Use the PID to generate a deterministic start time so tests can
-    // pre-write matching PID files.
-    if (alivePids.contains(pid)) {
-      return DateTime(2025, 7, 25, 12, 0, pid % 60);
-    }
-    return null;
-  }
-
-  @override
-  Future<bool> killPid(int pid) async {
-    killedPids.add(pid);
-    // Simulate: after kill, the PID is no longer alive.
-    alivePids.remove(pid);
-    return killPidResult;
-  }
-}
-
-class _CapturedStart {
-  final String executable;
-  final List<String> arguments;
-  final String? workingDirectory;
-  final Map<String, String>? environment;
-  final bool runInShell;
-
-  _CapturedStart({
-    required this.executable,
-    required this.arguments,
-    this.workingDirectory,
-    this.environment,
-    required this.runInShell,
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Writes an [AppConfig] to `config.json` under [dir].
-void _writeConfig(Directory dir, AppConfig config) {
-  final json = config.toJson();
-  final encoded = const JsonEncoder.withIndent('  ').convert(json);
-  final configPath = '${dir.path}/config.json';
-  Directory(configPath).parent.createSync(recursive: true);
-  File(configPath).writeAsStringSync(encoded, encoding: utf8, flush: true);
-}
+import '../helpers/test_mocks.dart';
 
 /// Creates an [AppConfig] with a single process for testing with [refreshMs]
 /// as the `output_refresh_ms`.
@@ -212,13 +51,13 @@ void main() {
   group('ProcessManager', () {
     late Directory tmpDir;
     late ConfigStore configStore;
-    late _MockProcessRunner mockRunner;
+    late MockProcessRunner mockRunner;
     late ProcessManager pm;
 
     setUp(() {
       tmpDir = Directory.systemTemp.createTempSync('trayforge_pm_test_');
       configStore = ConfigStore(dataDir: tmpDir.path);
-      mockRunner = _MockProcessRunner();
+      mockRunner = MockProcessRunner();
       pm = ProcessManager(
         configStore: configStore,
         processRunner: mockRunner,
@@ -226,7 +65,7 @@ void main() {
       );
 
       // Default config with fast refresh for tests.
-      _writeConfig(tmpDir, _testConfig());
+      writeConfig(tmpDir, _testConfig());
     });
 
     tearDown(() {
@@ -239,7 +78,7 @@ void main() {
 
     group('start', () {
       test('reads config, splits cmd, and launches process', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
 
         await pm.start('test-svc');
@@ -252,7 +91,7 @@ void main() {
       });
 
       test('transitions state starting → running', () async {
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
 
         final states = <ProcState>[];
         final sub = pm.stateStream('test-svc').listen(states.add);
@@ -265,7 +104,7 @@ void main() {
       });
 
       test('emits system message with PID on start', () async {
-        final handle = _MockProcessHandle(pid: 99999);
+        final handle = MockProcessHandle(pid: 99999);
         mockRunner.nextHandle = handle;
 
         final output = <String>[];
@@ -285,7 +124,7 @@ void main() {
       });
 
       test('writes PID file on start', () async {
-        mockRunner.nextHandle = _MockProcessHandle(pid: 42);
+        mockRunner.nextHandle = MockProcessHandle(pid: 42);
 
         await pm.start('test-svc');
 
@@ -309,7 +148,7 @@ void main() {
       });
 
       test('returns error when command is empty', () async {
-        _writeConfig(tmpDir, _testConfig(cmd: ''));
+        writeConfig(tmpDir, _testConfig(cmd: ''));
         // Re-create manager with new config
         final fresh = ProcessManager(
           configStore: configStore,
@@ -329,7 +168,7 @@ void main() {
       });
 
       test('singleton guard prevents double start', () async {
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
 
         await pm.start('test-svc');
         expect(pm.getState('test-svc'), ProcState.running);
@@ -338,7 +177,7 @@ void main() {
         pm.outputStream('test-svc').listen(output.add);
 
         // Replace config with singleton=true
-        _writeConfig(tmpDir, _testConfig(singleton: true));
+        writeConfig(tmpDir, _testConfig(singleton: true));
         await pm.start('test-svc');
 
         expect(
@@ -368,9 +207,9 @@ void main() {
 
       test('merges parent environment with per-process env and PYTHONIOENCODING',
           () async {
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
 
-        _writeConfig(tmpDir, _testConfig(env: {'CUSTOM': 'value'}));
+        writeConfig(tmpDir, _testConfig(env: {'CUSTOM': 'value'}));
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
@@ -388,9 +227,9 @@ void main() {
       });
 
       test('passes workingDirectory from cwd config', () async {
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
 
-        _writeConfig(tmpDir,
+        writeConfig(tmpDir,
             _testConfig(cwd: Platform.isWindows ? r'C:\app' : '/app'));
         final fresh = ProcessManager(
           configStore: configStore,
@@ -409,9 +248,9 @@ void main() {
       });
 
       test('falls back to UTF-8 on unknown encoding', () async {
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
 
-        _writeConfig(tmpDir, _testConfig(encoding: 'not-a-real-encoding'));
+        writeConfig(tmpDir, _testConfig(encoding: 'not-a-real-encoding'));
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
@@ -434,7 +273,7 @@ void main() {
 
     group('stop', () {
       test('transitions running → stopping → stopped', () async {
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
         await pm.start('test-svc');
         expect(pm.getState('test-svc'), ProcState.running);
 
@@ -460,7 +299,7 @@ void main() {
       });
 
       test('emits system messages on stop', () async {
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
         await pm.start('test-svc');
 
         final output = <String>[];
@@ -479,7 +318,7 @@ void main() {
       });
 
       test('deletes PID file on stop', () async {
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
         await pm.start('test-svc');
 
         final pidFile = File('${tmpDir.path}/pids/test-svc.pid');
@@ -497,7 +336,7 @@ void main() {
       });
 
       test('manual stop does not transition to crashed on exit', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
 
         await pm.start('test-svc');
@@ -520,7 +359,7 @@ void main() {
       });
 
       test('exit with non-zero code emits crashed state', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
 
         await pm.start('test-svc');
@@ -543,12 +382,12 @@ void main() {
       });
 
       test('stop clears the manual stop flag', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
         await pm.start('test-svc');
         await pm.stop('test-svc');
         // Starting again should work without any leftover flags
-        mockRunner.nextHandle = _MockProcessHandle(pid: 2);
+        mockRunner.nextHandle = MockProcessHandle(pid: 2);
         await pm.start('test-svc');
         expect(pm.getState('test-svc'), ProcState.running);
       });
@@ -558,7 +397,7 @@ void main() {
 
     group('output pipeline', () {
       test('strips ANSI codes from output', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
 
         final output = <String>[];
@@ -580,10 +419,10 @@ void main() {
       });
 
       test('detects WebUI URL and emits event', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
 
-        _writeConfig(tmpDir, _testConfig(
+        writeConfig(tmpDir, _testConfig(
           webuiPattern: r'listening at (http://[\d.:]+)',
         ));
         final fresh = ProcessManager(
@@ -610,10 +449,10 @@ void main() {
       });
 
       test('does not emit WebUI event when pattern does not match', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
 
-        _writeConfig(tmpDir, _testConfig(
+        writeConfig(tmpDir, _testConfig(
           webuiPattern: r'listening at (http://[\d.:]+)',
         ));
         final fresh = ProcessManager(
@@ -638,11 +477,11 @@ void main() {
       });
 
       test('batch-emits output at refresh interval', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
 
         // Use a config where we can observe batching.
-        _writeConfig(tmpDir, _testConfig(outputRefreshMs: 20));
+        writeConfig(tmpDir, _testConfig(outputRefreshMs: 20));
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
@@ -678,10 +517,10 @@ void main() {
       });
 
       test('trims output buffer to history limit', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
 
-        _writeConfig(tmpDir, _testConfig(outputHistoryLimit: 3, outputRefreshMs: 10));
+        writeConfig(tmpDir, _testConfig(outputHistoryLimit: 3, outputRefreshMs: 10));
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
@@ -711,10 +550,10 @@ void main() {
       });
 
       test('merges stdout and stderr', () async {
-        final handle = _MockProcessHandle();
+        final handle = MockProcessHandle();
         mockRunner.nextHandle = handle;
 
-        _writeConfig(tmpDir, _testConfig(outputRefreshMs: 10));
+        writeConfig(tmpDir, _testConfig(outputRefreshMs: 10));
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
@@ -751,7 +590,7 @@ void main() {
       });
 
       test('getState returns running for a started process', () async {
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
         await pm.start('test-svc');
 
         // New listener — should NOT replay past states (it's a broadcast,
@@ -764,21 +603,21 @@ void main() {
 
     group('crash restart', () {
       test('auto-restarts process on unexpected exit', () async {
-        _writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+        writeConfig(tmpDir, _testConfig(maxRestarts: 3));
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
           dataDir: tmpDir.path,
         );
 
-        final handle1 = _MockProcessHandle(pid: 100);
+        final handle1 = MockProcessHandle(pid: 100);
         mockRunner.nextHandle = handle1;
         await fresh.start('test-svc');
         expect(mockRunner.starts.length, 1);
         expect(fresh.getState('test-svc'), ProcState.running);
 
         // Simulate unexpected crash
-        final handle2 = _MockProcessHandle(pid: 101);
+        final handle2 = MockProcessHandle(pid: 101);
         mockRunner.nextHandle = handle2;
         handle1.closeOutputs();
         handle1.completeExit(1);
@@ -793,14 +632,14 @@ void main() {
       });
 
       test('cooldown prevents instant restart within 60 seconds', () async {
-        _writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+        writeConfig(tmpDir, _testConfig(maxRestarts: 3));
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
           dataDir: tmpDir.path,
         );
 
-        final handle1 = _MockProcessHandle(pid: 200);
+        final handle1 = MockProcessHandle(pid: 200);
         mockRunner.nextHandle = handle1;
         await fresh.start('test-svc');
         expect(mockRunner.starts.length, 1);
@@ -810,7 +649,7 @@ void main() {
         handle1.completeExit(1);
 
         // First restart should happen
-        final handle2 = _MockProcessHandle(pid: 201);
+        final handle2 = MockProcessHandle(pid: 201);
         mockRunner.nextHandle = handle2;
         await Future<void>.delayed(const Duration(milliseconds: 10));
         expect(mockRunner.starts.length, 2,
@@ -832,7 +671,7 @@ void main() {
 
       test('max restarts exhausted → crashed state with system message',
           () async {
-        _writeConfig(tmpDir, _testConfig(maxRestarts: 1));
+        writeConfig(tmpDir, _testConfig(maxRestarts: 1));
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
@@ -842,12 +681,12 @@ void main() {
         final output = <String>[];
         fresh.outputStream('test-svc').listen(output.add);
 
-        final handle1 = _MockProcessHandle(pid: 300);
+        final handle1 = MockProcessHandle(pid: 300);
         mockRunner.nextHandle = handle1;
         await fresh.start('test-svc');
 
         // First crash → restart #1 (max_restarts=1, so this is the only restart)
-        final handle2 = _MockProcessHandle(pid: 301);
+        final handle2 = MockProcessHandle(pid: 301);
         mockRunner.nextHandle = handle2;
         handle1.closeOutputs();
         handle1.completeExit(1);
@@ -874,7 +713,7 @@ void main() {
 
       test('restart count resets after successful manual stop + restart',
           () async {
-        _writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+        writeConfig(tmpDir, _testConfig(maxRestarts: 3));
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
@@ -882,11 +721,11 @@ void main() {
         );
 
         // Start → crash → restart (count=1)
-        final handle1 = _MockProcessHandle(pid: 400);
+        final handle1 = MockProcessHandle(pid: 400);
         mockRunner.nextHandle = handle1;
         await fresh.start('test-svc');
 
-        final handle2 = _MockProcessHandle(pid: 401);
+        final handle2 = MockProcessHandle(pid: 401);
         mockRunner.nextHandle = handle2;
         handle1.closeOutputs();
         handle1.completeExit(1);
@@ -897,13 +736,13 @@ void main() {
         await fresh.stop('test-svc');
 
         // Start fresh → restart count should be 0
-        final handle3 = _MockProcessHandle(pid: 402);
+        final handle3 = MockProcessHandle(pid: 402);
         mockRunner.nextHandle = handle3;
         await fresh.start('test-svc');
         expect(mockRunner.starts.length, 3);
 
         // Crash → should restart (count fresh)
-        final handle4 = _MockProcessHandle(pid: 403);
+        final handle4 = MockProcessHandle(pid: 403);
         mockRunner.nextHandle = handle4;
         handle3.closeOutputs();
         handle3.completeExit(1);
@@ -939,7 +778,7 @@ void main() {
 
       test('starts normally when process is not running at OS level', () async {
         mockRunner.isRunning = false;
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
 
         await pm.start('test-svc');
 
@@ -1127,12 +966,12 @@ void main() {
         // Now configure the process with delete_before_start pointing at
         // the lock file. Since the orphan was killed, the file should be
         // deletable when start() runs.
-        _writeConfig(tmpDir, _testConfig(
+        writeConfig(tmpDir, _testConfig(
           cwd: cwdDir.path,
           deleteBeforeStart: ['app.lock'],
         ));
 
-        mockRunner.nextHandle = _MockProcessHandle(pid: 100);
+        mockRunner.nextHandle = MockProcessHandle(pid: 100);
         await fresh.start('test-svc');
 
         // Lock file should be gone — deleted by delete_before_start since
@@ -1154,7 +993,7 @@ void main() {
         lockFile.writeAsStringSync('stale lock');
         expect(lockFile.existsSync(), isTrue);
 
-        _writeConfig(tmpDir, _testConfig(
+        writeConfig(tmpDir, _testConfig(
           cwd: cwdDir.path,
           deleteBeforeStart: ['app.lock'],
         ));
@@ -1164,7 +1003,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
         await fresh.start('test-svc');
 
         expect(lockFile.existsSync(), isFalse,
@@ -1174,7 +1013,7 @@ void main() {
       });
 
       test('blocks path escape attempts', () async {
-        _writeConfig(tmpDir, _testConfig(
+        writeConfig(tmpDir, _testConfig(
           cwd: '${tmpDir.path}/app',
           deleteBeforeStart: ['../escape.txt'],
         ));
@@ -1187,7 +1026,7 @@ void main() {
         final output = <String>[];
         fresh.outputStream('test-svc').listen(output.add);
 
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
         await fresh.start('test-svc');
 
         expect(
@@ -1200,7 +1039,7 @@ void main() {
       });
 
       test('skips delete_before_start when cwd is null', () async {
-        _writeConfig(tmpDir, _testConfig(
+        writeConfig(tmpDir, _testConfig(
           cwd: null,
           deleteBeforeStart: ['app.lock'],
         ));
@@ -1210,7 +1049,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        mockRunner.nextHandle = _MockProcessHandle();
+        mockRunner.nextHandle = MockProcessHandle();
         // Should not throw.
         await fresh.start('test-svc');
         expect(fresh.getState('test-svc'), ProcState.running);
@@ -1235,11 +1074,11 @@ void main() {
         );
 
         // Write config via ConfigStore so load() returns it.
-        _writeConfig(tmpDir, testConfig);
+        writeConfig(tmpDir, testConfig);
 
         mockRunner.enqueueHandles([
-          _MockProcessHandle(pid: 10),
-          _MockProcessHandle(pid: 11),
+          MockProcessHandle(pid: 10),
+          MockProcessHandle(pid: 11),
         ]);
 
         // Construction triggers autostart.
@@ -1287,9 +1126,9 @@ void main() {
 
     group('reloadConfig', () {
       test('starts new autostart processes and stops removed ones', () async {
-        _writeConfig(tmpDir, _testConfig(name: 'keep-me', autostart: true));
+        writeConfig(tmpDir, _testConfig(name: 'keep-me', autostart: true));
 
-        mockRunner.nextHandle = _MockProcessHandle(pid: 800);
+        mockRunner.nextHandle = MockProcessHandle(pid: 800);
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
@@ -1300,7 +1139,7 @@ void main() {
         expect(fresh.getState('keep-me'), ProcState.running);
 
         // Reload: remove 'keep-me', add 'new-svc' with autostart.
-        mockRunner.nextHandle = _MockProcessHandle(pid: 801);
+        mockRunner.nextHandle = MockProcessHandle(pid: 801);
         await fresh.reloadConfig(AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
@@ -1320,9 +1159,9 @@ void main() {
       });
 
       test('leaves running processes untouched on reload', () async {
-        _writeConfig(tmpDir, _testConfig(name: 'svc1', autostart: true));
+        writeConfig(tmpDir, _testConfig(name: 'svc1', autostart: true));
 
-        mockRunner.nextHandle = _MockProcessHandle(pid: 900);
+        mockRunner.nextHandle = MockProcessHandle(pid: 900);
         final fresh = ProcessManager(
           configStore: configStore,
           processRunner: mockRunner,
@@ -1335,7 +1174,7 @@ void main() {
         final output = <String>[];
         fresh.outputStream('svc1').listen(output.add);
 
-        mockRunner.nextHandle = _MockProcessHandle(pid: 901);
+        mockRunner.nextHandle = MockProcessHandle(pid: 901);
         await fresh.reloadConfig(AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
