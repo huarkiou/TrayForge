@@ -58,3 +58,27 @@ Spec says fixed 60s. Made a constructor parameter defaulting to 60s so that
 future configuration (e.g. user-facing restart cooldown in Settings) can pass
 a different value without internal refactoring. Tests also benefit from the
 hook but the primary motivation is forward-looking API design.
+
+### D7: `Platform.isWindows` dispatch in `RealProcessRunner` kept inline
+
+`isProcessRunning`, `isPidAlive`, `getProcessStartTime` each start with
+`if (Platform.isWindows) { … } else { … }`. This is the standard pattern for
+cross-platform OS abstractions — the branch bodies are completely different
+commands and parse logic, not true "Repeated Switches". Splitting into
+`WindowsProcessQueries` / `LinuxProcessQueries` classes would be Speculative
+Generality for 3 methods.
+
+### D8: Manual `checkDone()` counter in `_cleanupStalePidFiles` not merged with `_trackPending`
+
+The PID cleanup uses nested `.then()` callbacks (isPidAlive → getProcessStartTime)
+with a manual counter. `_trackPending` wraps a single Future. The two async
+patterns are different shapes — forcing them into one abstraction would add
+complexity without reducing duplication.
+
+### D9: Kill stale zombies deferred
+
+`_cleanupStalePidFiles` detects PID-reuse via `startTime` mismatch (D3) but does
+not kill the zombie process. "kill stale zombies" from spec is deferred: the
+startTime guard already prevents PID-reuse false positives at the file level;
+OS-level kill adds risk (killing an unrelated process) with marginal benefit.
+Revisit if stale processes become a user-facing issue.
