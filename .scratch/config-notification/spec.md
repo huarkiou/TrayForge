@@ -52,9 +52,6 @@ No `onConfigReloaded` — globals take effect on next process start, no runtime 
 TrayViewModel "Reload Settings"
   → ConfigStore.load()
   → ProcessManager.reloadConfig(loaded)  → stop/start + cleanup + emit onConfigReloaded
-    → DashboardViewModel._rebuild()
-    → TrayViewModel._rebuildSubscriptions()
-    → SettingsViewModel._reload()
 ```
 
 No disk write — reload only reads.
@@ -88,8 +85,3 @@ No disk write — reload only reads.
 ### ProcessEditPage (UI tip)
 - When saving an edited process that is currently running, show snackbar:
   "Process is running — changes will take effect on next start"
-
-## Caveats
-
-- `SettingsViewModel._save()`: `reloadConfig()` emits `onConfigReloaded` → `_reload()` reads config it just wrote → `notifyListeners()`, then `_save()` itself calls `notifyListeners()` again. Two `notifyListeners`, harmless.
-- Output refresh interval (`outputRefreshMs`) and history limit (`outputHistoryLimit`) only take effect when a process starts. The timer and buffer limit are set at `start()` time and not dynamically reconfigured for already-running processes.
