@@ -154,7 +154,7 @@ class Autostart {
 Type=Application
 Name=TrayForge
 Comment=TrayForge system tray application
-Exec=$exePath
+Exec="$exePath"
 Terminal=false
 X-GNOME-Autostart-enabled=true
 ''';
