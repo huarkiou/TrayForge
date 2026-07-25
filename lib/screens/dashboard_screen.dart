@@ -124,6 +124,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: widget.viewModel.processViewModels.length,
+      buildDefaultDragHandles: false,
       onReorderItem: (oldIndex, newIndex) {
         widget.settingsViewModel?.reorderItem(oldIndex, newIndex);
       },
