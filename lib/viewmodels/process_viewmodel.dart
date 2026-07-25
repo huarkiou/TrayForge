@@ -9,8 +9,9 @@ import 'package:trayforge/services/process_manager.dart';
 /// ViewModel for a single managed process.
 ///
 /// Mirrors [ProcState] from [ProcessManager], accumulates output lines
-/// bounded by [outputHistoryLimit], tracks WebUI URL detection, and
-/// exposes an optimistic toggle for immediate button feedback.
+/// bounded by [outputHistoryLimit], tracks WebUI URL detection via a
+/// per-process pipeline stream, and exposes an optimistic toggle for
+/// immediate button feedback.
 class ProcessViewModel extends ChangeNotifier {
   final String name;
   final ProcessManager _processManager;
@@ -27,7 +28,7 @@ class ProcessViewModel extends ChangeNotifier {
 
   StreamSubscription<ProcState>? _stateSub;
   StreamSubscription<String>? _outputSub;
-  StreamSubscription<WebUiEvent>? _webuiSub;
+  StreamSubscription<Uri>? _webuiSub;
 
   ProcessViewModel({
     required this.name,
@@ -39,7 +40,7 @@ class ProcessViewModel extends ChangeNotifier {
 
     _stateSub = processManager.stateStream(name).listen(_onState);
     _outputSub = processManager.outputStream(name).listen(_onOutput);
-    _webuiSub = processManager.onWebUiDetected.listen(_onWebUi);
+    _webuiSub = processManager.webUiStream(name).listen(_onWebUi);
   }
 
   /// Current process state, or the optimistic state if a toggle is in flight.
@@ -105,11 +106,9 @@ class ProcessViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _onWebUi(WebUiEvent event) {
-    if (event.processName == name) {
-      _webuiUrl = event.url;
-      notifyListeners();
-    }
+  void _onWebUi(Uri url) {
+    _webuiUrl = url;
+    notifyListeners();
   }
 
   @override

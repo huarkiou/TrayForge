@@ -11,51 +11,29 @@ import 'package:trayforge/foundation/shlex.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_runner.dart';
 
-/// Event raised when a Web UI URL is detected in process output.
-class WebUiEvent {
-  final String processName;
-  final Uri url;
-
-  const WebUiEvent(this.processName, this.url);
-}
-
 // ---------------------------------------------------------------------------
 // _ProcessRuntime
 // ---------------------------------------------------------------------------
 
 /// Per-process mutable state bundled into a single object.
 ///
-/// Previously 9 parallel `Map<String, ...>` fields on [ProcessManager]; now
-/// one `Map<String, _ProcessRuntime>`. [dispose] closes controllers, cancels
-/// timers/subscriptions, and [flushBuffer] drains pending output lines.
+/// [dispose] closes controllers, cancels timers/subscriptions.
+/// The output pipeline (buffer, flush timer, ANSI strip, WebUI detection)
+/// lives in [BufferedOutputPipeline] instead of being scattered here.
 class _ProcessRuntime {
   ProcState state = ProcState.stopped;
   IProcessHandle? handle;
   bool manualStop = false;
   _RestartState? restart;
-  StreamController<String>? outputController;
-  List<String>? outputBuffer;
-  Timer? flushTimer;
+  BufferedOutputPipeline? pipeline;
   StreamSubscription<void>? outputSubscription;
   StreamController<ProcState>? stateController;
-
-  /// Flush buffered output lines to the output stream.
-  void flushBuffer() {
-    final buffer = outputBuffer;
-    final controller = outputController;
-    if (buffer == null || controller == null || buffer.isEmpty) return;
-    for (final line in buffer) {
-      controller.add(line);
-    }
-    buffer.clear();
-  }
 
   /// Release all resources held by this runtime entry.
   void dispose() {
     restart?.cooldownTimer?.cancel();
-    flushTimer?.cancel();
+    pipeline?.dispose();
     outputSubscription?.cancel();
-    outputController?.close();
     stateController?.close();
   }
 }
@@ -89,12 +67,6 @@ class ProcessManager {
   /// Per-process mutable state, bundled into a single map.
   final Map<String, _ProcessRuntime> _procs = {};
 
-  // WebUI detection broadcast
-  final StreamController<WebUiEvent> _webuiController;
-
-  /// Broadcast stream of WebUI URL detections.
-  Stream<WebUiEvent> get onWebUiDetected => _webuiController.stream;
-
   // Config reload broadcast
   final StreamController<void> _onConfigReloadedController =
       StreamController<void>.broadcast(sync: true);
@@ -112,8 +84,7 @@ class ProcessManager {
     // ignore: prefer_initializing_formals
     : _configStore = configStore,
        _processRunner = processRunner ?? RealProcessRunner(),
-       _dataDir = dataDir ?? Logger.getDataDir(),
-       _webuiController = StreamController<WebUiEvent>.broadcast(sync: true);
+       _dataDir = dataDir ?? Logger.getDataDir();
 
   /// Performs startup operations: stale PID cleanup and autostart.
   ///
@@ -131,9 +102,15 @@ class ProcessManager {
 
   /// Returns a broadcast stream of processed output lines for [name].
   Stream<String> outputStream(String name) {
-    return (_proc(name).outputController ??= StreamController<String>.broadcast(
-      sync: true,
-    )).stream;
+    return _ensurePipeline(name).output;
+  }
+
+  /// Returns a broadcast stream of WebUI URL detections for [name].
+  ///
+  /// Each process gets its own detection stream — no relay or name
+  /// filtering needed.
+  Stream<Uri> webUiStream(String name) {
+    return _ensurePipeline(name).onWebUiDetected;
   }
 
   /// Returns a broadcast stream of [ProcState] transitions for [name].
@@ -154,9 +131,7 @@ class ProcessManager {
   /// through `starting` → `running`.
   Future<void> start(String name) async {
     final proc = _proc(name);
-
-    // Ensure the output controller exists before any system message is pushed.
-    proc.outputController ??= StreamController<String>.broadcast(sync: true);
+    final pipeline = _ensurePipeline(name);
 
     final procConfig = _lookupConfig(name);
     if (procConfig == null) return;
@@ -256,23 +231,24 @@ class ProcessManager {
       // Wire output pipeline
       final config = _configStore.load()!;
       final encoding = _resolveEncoding(procConfig.encoding, name);
-      final webuiPattern = procConfig.webuiPattern;
-      final refreshMs = config.outputRefreshMs;
-      final historyLimit = config.outputHistoryLimit;
 
-      proc.outputBuffer = [];
+      pipeline.configure(
+        historyLimit: config.outputHistoryLimit,
+        refreshMs: config.outputRefreshMs,
+        webuiPattern: procConfig.webuiPattern,
+      );
 
       final merged = _mergeByteStreams(handle.stdout, handle.stderr);
       final subscription = merged
           .transform(encoding.decoder)
           .transform(const LineSplitter())
           .listen(
-            (line) => _onOutputLine(name, line, webuiPattern, historyLimit),
-            onError: (e) => _pushSystemMessage(name, 'Output read error: $e'),
+            pipeline.addLine,
+            onError: (e) => pipeline.push('[trayforge] Output read error: $e'),
           );
       proc.outputSubscription = subscription;
 
-      _startFlushTimer(name, refreshMs);
+      pipeline.startFlushTimer();
 
       // Monitor exit
       handle.exitCode.then((exitCode) {
@@ -324,7 +300,6 @@ class ProcessManager {
     for (final proc in _procs.values) {
       proc.dispose();
     }
-    _webuiController.close();
     _onConfigReloadedController.close();
   }
 
@@ -371,10 +346,7 @@ class ProcessManager {
 
   /// Clears the output buffer for [name], discarding any un-flushed lines.
   void clearOutput(String name) {
-    final proc = _procs[name];
-    if (proc != null) {
-      proc.outputBuffer?.clear();
-    }
+    _procs[name]?.pipeline?.clear();
   }
 
   /// Immediately flushes buffered output for [name].
@@ -383,7 +355,7 @@ class ProcessManager {
   /// flush timer.
   @visibleForTesting
   void flushNow(String name) {
-    _proc(name).flushBuffer();
+    _procs[name]?.pipeline?.flushNow();
   }
 
   // ---------------------------------------------------------------------------
@@ -476,6 +448,12 @@ class ProcessManager {
     return _procs.putIfAbsent(name, () => _ProcessRuntime());
   }
 
+  /// Returns the [BufferedOutputPipeline] for [name], creating one if absent.
+  BufferedOutputPipeline _ensurePipeline(String name) {
+    final proc = _proc(name);
+    return proc.pipeline ??= BufferedOutputPipeline();
+  }
+
   /// Starts all processes with `autostart: true` in the current config.
   Future<void> _autostartAll() async {
     final config = _configStore.load();
@@ -510,47 +488,16 @@ class ProcessManager {
     return match;
   }
 
-  void _onOutputLine(
-    String name,
-    String line,
-    String? webuiPattern,
-    int historyLimit,
-  ) {
-    final cleaned = OutputPipeline.stripAnsi(line);
-
-    if (webuiPattern != null) {
-      final url = OutputPipeline.tryDetectWebUi(cleaned, webuiPattern);
-      if (url != null) {
-        _webuiController.add(WebUiEvent(name, url));
-      }
-    }
-
-    final buffer = _proc(name).outputBuffer!;
-    buffer.add(cleaned);
-    while (buffer.length > historyLimit) {
-      buffer.removeAt(0);
-    }
-  }
-
-  void _startFlushTimer(String name, int refreshMs) {
-    final proc = _proc(name);
-    proc.flushTimer?.cancel();
-    proc.flushTimer = Timer.periodic(Duration(milliseconds: refreshMs), (_) {
-      _proc(name).flushBuffer();
-    });
-  }
-
   void _cleanup(String name) {
     final proc = _procs[name];
     if (proc == null || proc.handle == null) return;
 
-    proc.flushTimer?.cancel();
-    proc.flushTimer = null;
+    proc.pipeline?.stopFlushTimer();
     proc.outputSubscription?.cancel();
     proc.outputSubscription = null;
 
     // Flush remaining buffered output before removing handle.
-    proc.flushBuffer();
+    proc.pipeline?.flushNow();
 
     proc.handle = null;
     _deletePidFile(name);
@@ -564,7 +511,7 @@ class ProcessManager {
 
   void _pushSystemMessage(String name, String message) {
     final line = '[trayforge] $message';
-    _proc(name).outputController?.add(line);
+    _procs[name]?.pipeline?.push(line);
   }
 
   Encoding _resolveEncoding(String? encodingName, String name) {

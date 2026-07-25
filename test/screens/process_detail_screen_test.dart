@@ -12,8 +12,7 @@ import 'package:trayforge/viewmodels/process_viewmodel.dart';
 class _FakeProcessManager extends Fake implements ProcessManager {
   final Map<String, StreamController<ProcState>> _stateControllers = {};
   final Map<String, StreamController<String>> _outputControllers = {};
-  final StreamController<WebUiEvent> _webuiController =
-      StreamController<WebUiEvent>.broadcast(sync: true);
+  final Map<String, StreamController<Uri>> _webuiControllers = {};
   final Map<String, ProcState> _states = {};
 
   @override
@@ -34,7 +33,11 @@ class _FakeProcessManager extends Fake implements ProcessManager {
   }
 
   @override
-  Stream<WebUiEvent> get onWebUiDetected => _webuiController.stream;
+  Stream<Uri> webUiStream(String name) {
+    return _webuiControllers
+        .putIfAbsent(name, () => StreamController<Uri>.broadcast(sync: true))
+        .stream;
+  }
 
   @override
   ProcState getState(String name) => _states[name] ?? ProcState.stopped;
@@ -48,8 +51,8 @@ class _FakeProcessManager extends Fake implements ProcessManager {
     _outputControllers[name]?.add(line);
   }
 
-  void emitWebUi(WebUiEvent event) {
-    _webuiController.add(event);
+  void emitWebUi(String name, Uri url) {
+    _webuiControllers[name]?.add(url);
   }
 
   @override
@@ -69,8 +72,7 @@ class _FakeProcessManager extends Fake implements ProcessManager {
 class _NoResolveFakeManager extends Fake implements ProcessManager {
   final Map<String, StreamController<ProcState>> _stateControllers = {};
   final Map<String, StreamController<String>> _outputControllers = {};
-  final StreamController<WebUiEvent> _webuiController =
-      StreamController<WebUiEvent>.broadcast(sync: true);
+  final Map<String, StreamController<Uri>> _webuiControllers = {};
 
   @override
   Stream<ProcState> stateStream(String name) {
@@ -90,7 +92,11 @@ class _NoResolveFakeManager extends Fake implements ProcessManager {
   }
 
   @override
-  Stream<WebUiEvent> get onWebUiDetected => _webuiController.stream;
+  Stream<Uri> webUiStream(String name) {
+    return _webuiControllers
+        .putIfAbsent(name, () => StreamController<Uri>.broadcast(sync: true))
+        .stream;
+  }
 
   @override
   ProcState getState(String name) => ProcState.stopped;
@@ -240,9 +246,7 @@ void main() {
     // ---- WebUI button ----
 
     testWidgets('shows WebUI copy button when URL is detected', (tester) async {
-      fakeManager.emitWebUi(
-        WebUiEvent('test-svc', Uri.parse('http://127.0.0.1:8080')),
-      );
+      fakeManager.emitWebUi('test-svc', Uri.parse('http://127.0.0.1:8080'));
       await tester.pumpWidget(buildPage());
       await tester.pump();
 
@@ -257,9 +261,7 @@ void main() {
     });
 
     testWidgets('WebUI button copies URL to clipboard', (tester) async {
-      fakeManager.emitWebUi(
-        WebUiEvent('test-svc', Uri.parse('http://127.0.0.1:8080')),
-      );
+      fakeManager.emitWebUi('test-svc', Uri.parse('http://127.0.0.1:8080'));
       await tester.pumpWidget(buildPage());
       await tester.pump();
 

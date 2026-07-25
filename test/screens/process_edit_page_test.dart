@@ -22,7 +22,7 @@ class _RunningFakePM extends Fake implements ProcessManager {
   Stream<String> outputStream(String name) => const Stream<String>.empty();
 
   @override
-  Stream<WebUiEvent> get onWebUiDetected => const Stream<WebUiEvent>.empty();
+  Stream<Uri> webUiStream(String name) => const Stream<Uri>.empty();
 
   @override
   Stream<void> get onConfigReloaded => const Stream<void>.empty();
@@ -146,7 +146,7 @@ class _StoppedFakePM extends Fake implements ProcessManager {
   Stream<String> outputStream(String name) => const Stream<String>.empty();
 
   @override
-  Stream<WebUiEvent> get onWebUiDetected => const Stream<WebUiEvent>.empty();
+  Stream<Uri> webUiStream(String name) => const Stream<Uri>.empty();
 
   @override
   Stream<void> get onConfigReloaded => const Stream<void>.empty();

@@ -410,8 +410,8 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        WebUiEvent? event;
-        fresh.onWebUiDetected.listen((e) => event = e);
+        Uri? detectedUrl;
+        fresh.webUiStream('test-svc').listen((url) => detectedUrl = url);
 
         await fresh.start('test-svc');
 
@@ -420,9 +420,8 @@ void main() {
 
         fresh.flushNow('test-svc');
 
-        expect(event, isNotNull);
-        expect(event!.processName, 'test-svc');
-        expect(event!.url.toString(), 'http://127.0.0.1:8080');
+        expect(detectedUrl, isNotNull);
+        expect(detectedUrl.toString(), 'http://127.0.0.1:8080');
 
         fresh.dispose();
       });
@@ -442,7 +441,7 @@ void main() {
         );
 
         var eventCount = 0;
-        fresh.onWebUiDetected.listen((_) => eventCount++);
+        fresh.webUiStream('test-svc').listen((_) => eventCount++);
 
         await fresh.start('test-svc');
 

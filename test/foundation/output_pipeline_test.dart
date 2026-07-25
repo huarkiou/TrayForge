@@ -84,4 +84,167 @@ void main() {
       expect(result.toString(), 'http://a.com');
     });
   });
+
+  group('BufferedOutputPipeline', () {
+    late BufferedOutputPipeline pipeline;
+
+    setUp(() {
+      pipeline = BufferedOutputPipeline();
+    });
+
+    tearDown(() {
+      pipeline.dispose();
+    });
+
+    // ---- addLine + flushNow ----
+
+    test('strips ANSI and emits via flushNow', () {
+      final output = <String>[];
+      pipeline.output.listen(output.add);
+
+      pipeline.addLine('\x1B[31mRed text\x1B[0m');
+      pipeline.flushNow();
+
+      expect(output, ['Red text']);
+    });
+
+    test('detects WebUI URL when configured', () {
+      final uris = <Uri>[];
+      pipeline.onWebUiDetected.listen(uris.add);
+
+      pipeline.configure(webuiPattern: r'started at (http://[\d.:]+)');
+      pipeline.addLine('WebUI started at http://127.0.0.1:3000');
+
+      expect(uris.length, 1);
+      expect(uris.first.toString(), 'http://127.0.0.1:3000');
+    });
+
+    test('does not detect WebUI when webuiPattern is null', () {
+      var count = 0;
+      pipeline.onWebUiDetected.listen((_) => count++);
+
+      pipeline.addLine('WebUI started at http://127.0.0.1:3000');
+
+      expect(count, 0);
+    });
+
+    test('trims buffer to history limit', () {
+      final output = <String>[];
+      pipeline.output.listen(output.add);
+
+      pipeline.configure(historyLimit: 3);
+      pipeline.addLine('a');
+      pipeline.addLine('b');
+      pipeline.addLine('c');
+      pipeline.addLine('d');
+      pipeline.addLine('e');
+
+      pipeline.flushNow();
+
+      expect(output.length, 3);
+      expect(output, ['c', 'd', 'e']);
+    });
+
+    // ---- push ----
+
+    test('push bypasses buffer and emits immediately', () {
+      final output = <String>[];
+      pipeline.output.listen(output.add);
+
+      pipeline.addLine('buffered line');
+      pipeline.push('[system] message');
+
+      // Buffered line not yet flushed.
+      expect(output, ['[system] message']);
+    });
+
+    // ---- flush timer ----
+
+    test('flush timer periodically drains buffer', () async {
+      final output = <String>[];
+      pipeline.output.listen(output.add);
+
+      pipeline.configure(refreshMs: 10);
+      pipeline.addLine('line1');
+      pipeline.addLine('line2');
+
+      pipeline.startFlushTimer();
+
+      // Wait for timer to fire.
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(output, ['line1', 'line2']);
+    });
+
+    test('stopFlushTimer stops periodic flush', () async {
+      final output = <String>[];
+      pipeline.output.listen(output.add);
+
+      pipeline.configure(refreshMs: 10);
+      pipeline.addLine('line1');
+
+      pipeline.startFlushTimer();
+      pipeline.stopFlushTimer();
+
+      // Timer was stopped before firing.
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(output, isEmpty);
+    });
+
+    // ---- clear ----
+
+    test('clear discards buffered lines', () {
+      final output = <String>[];
+      pipeline.output.listen(output.add);
+
+      pipeline.addLine('line1');
+      pipeline.addLine('line2');
+      pipeline.clear();
+      pipeline.flushNow();
+
+      expect(output, isEmpty);
+    });
+
+    // ---- multiple WebUI detections ----
+
+    test('emits multiple WebUI detections', () {
+      final uris = <Uri>[];
+      pipeline.onWebUiDetected.listen(uris.add);
+
+      pipeline.configure(webuiPattern: r'(http://[\d.:]+)');
+      pipeline.addLine('started at http://127.0.0.1:3000');
+      pipeline.addLine('also at http://127.0.0.1:4000');
+
+      expect(uris.length, 2);
+    });
+
+    // ---- reconfigure ----
+
+    test('reconfigure updates webuiPattern', () {
+      final uris = <Uri>[];
+      pipeline.onWebUiDetected.listen(uris.add);
+
+      // First: no pattern.
+      pipeline.addLine('at http://127.0.0.1:3000');
+      expect(uris, isEmpty);
+
+      // Reconfigure with pattern.
+      pipeline.configure(webuiPattern: r'at (http://[\d.:]+)');
+      pipeline.addLine('at http://127.0.0.1:3000');
+
+      expect(uris.length, 1);
+    });
+
+    // ---- dispose closes streams ----
+
+    test('dispose closes output stream', () {
+      final output = <String>[];
+      pipeline.output.listen(output.add, onDone: () => output.add('<done>'));
+
+      pipeline.dispose();
+
+      expect(output.last, '<done>');
+    });
+  });
 }
