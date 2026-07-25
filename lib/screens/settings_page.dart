@@ -54,7 +54,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildStepperField({
     required String label,
-    required String helperText,
+    required String tooltip,
     required TextEditingController controller,
     required int value,
     required int min,
@@ -65,17 +65,22 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+        Tooltip(
+          message: tooltip,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          ),
+        ),
         const SizedBox(height: 4),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
               child: TextFormField(
                 controller: controller,
-                decoration: InputDecoration(
-                  hintText: value.toString(),
-                  helperText: helperText,
-                  border: const OutlineInputBorder(),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -91,10 +96,11 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(width: 4),
             Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 SizedBox(
                   width: 32,
-                  height: 28,
+                  height: 24,
                   child: IconButton(
                     icon: const Icon(Icons.keyboard_arrow_up, size: 20),
                     onPressed: value < max
@@ -106,7 +112,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 SizedBox(
                   width: 32,
-                  height: 28,
+                  height: 24,
                   child: IconButton(
                     icon: const Icon(Icons.keyboard_arrow_down, size: 20),
                     onPressed: value > min
@@ -133,7 +139,7 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           _buildStepperField(
             label: 'Output refresh (ms)',
-            helperText: 'Lower = smoother, higher = less CPU',
+            tooltip: 'Lower = smoother, higher = less CPU',
             controller: _refreshCtrl,
             value: _vm.outputRefreshMs,
             min: 100,
@@ -144,7 +150,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 16),
           _buildStepperField(
             label: 'History limit',
-            helperText: 'Max lines per process',
+            tooltip: 'Max lines per process',
             controller: _historyCtrl,
             value: _vm.outputHistoryLimit,
             min: 100,
