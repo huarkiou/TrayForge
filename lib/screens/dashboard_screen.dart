@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:trayforge_flutter/screens/process_detail_screen.dart';
+import 'package:trayforge_flutter/screens/settings_page.dart';
 import 'package:trayforge_flutter/viewmodels/dashboard_viewmodel.dart';
+import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
 import 'package:trayforge_flutter/widgets/process_card.dart';
 
 /// Dashboard screen showing process cards or a welcome screen.
@@ -11,8 +13,9 @@ import 'package:trayforge_flutter/widgets/process_card.dart';
 /// shows an alert dialog before rendering.
 class DashboardScreen extends StatefulWidget {
   final DashboardViewModel viewModel;
+  final SettingsViewModel? settingsViewModel;
 
-  const DashboardScreen({super.key, required this.viewModel});
+  const DashboardScreen({super.key, required this.viewModel, this.settingsViewModel});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -56,6 +59,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(DashboardViewModel.appTitle),
+        actions: [
+          if (widget.settingsViewModel != null)
+            IconButton(
+              icon: const Icon(Icons.settings),
+              tooltip: 'Settings',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SettingsPage(
+                      viewModel: widget.settingsViewModel!,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
       body: ListenableBuilder(
         listenable: widget.viewModel,
@@ -110,7 +130,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               context,
               MaterialPageRoute(
                 builder: (_) =>
-                    ProcessDetailPage(processName: vm.name),
+                    ProcessDetailPage(viewModel: vm),
               ),
             );
           },

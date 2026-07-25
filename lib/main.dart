@@ -13,6 +13,7 @@ import 'package:trayforge_flutter/services/config_store.dart';
 import 'package:trayforge_flutter/services/process_manager.dart';
 import 'package:trayforge_flutter/services/single_instance.dart';
 import 'package:trayforge_flutter/viewmodels/dashboard_viewmodel.dart';
+import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
 import 'package:trayforge_flutter/viewmodels/tray_viewmodel.dart';
 
 // ---------------------------------------------------------------------------
@@ -25,6 +26,7 @@ late final ConfigStore _configStore;
 late final ProcessManager _processManager;
 late final TrayViewModel _trayViewModel;
 late final DashboardViewModel _dashboardViewModel;
+late final SettingsViewModel _settingsViewModel;
 
 // ---------------------------------------------------------------------------
 // Entry point
@@ -73,6 +75,11 @@ Future<void> main() async {
     configStore: _configStore,
     processManager: _processManager,
     configCorrupted: configCorrupted,
+  );
+
+  _settingsViewModel = SettingsViewModel(
+    configStore: _configStore,
+    processManager: _processManager,
   );
 
   _trayViewModel = TrayViewModel(
@@ -216,7 +223,10 @@ class _TrayForgeApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
       ),
-      home: DashboardScreen(viewModel: _dashboardViewModel),
+      home: DashboardScreen(
+        viewModel: _dashboardViewModel,
+        settingsViewModel: _settingsViewModel,
+      ),
     );
   }
 }

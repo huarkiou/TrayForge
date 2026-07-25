@@ -1,0 +1,256 @@
+import 'package:flutter/material.dart';
+import 'package:trayforge_flutter/foundation/models.dart';
+import 'package:trayforge_flutter/screens/process_edit_page.dart';
+import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
+
+/// Settings page with a reorderable list of process configurations.
+///
+/// Supports add (FAB), edit (tap name), copy, delete (with running-process
+/// awareness), and drag-to-reorder. Changes are persisted through
+/// [SettingsViewModel] and trigger a [ProcessManager] reload.
+class SettingsPage extends StatefulWidget {
+  final SettingsViewModel viewModel;
+
+  const SettingsPage({super.key, required this.viewModel});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  SettingsViewModel get _vm => widget.viewModel;
+
+  @override
+  void initState() {
+    super.initState();
+    _vm.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    _vm.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() => setState(() {});
+
+  // ---- Navigation ----
+
+  Future<void> _openAddPage() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProcessEditPage(settingsViewModel: _vm),
+      ),
+    );
+  }
+
+  Future<void> _openEditPage(int index) async {
+    final config = _vm.processes[index];
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProcessEditPage(
+          settingsViewModel: _vm,
+          initial: config,
+          editIndex: index,
+        ),
+      ),
+    );
+  }
+
+  // ---- Delete ----
+
+  Future<void> _confirmDelete(int index) async {
+    final config = _vm.processes[index];
+
+    if (_vm.isRunning(config.name)) {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Stop and delete?'),
+          content: Text(
+            '"${config.name}" is currently running. '
+            'Do you want to stop it and delete the configuration?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: const Text('Stop and Delete'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == true) {
+        await _vm.stopProcess(config.name);
+        _vm.delete(index);
+      }
+    } else {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Delete process?'),
+          content: Text(
+            'Delete "${config.name}"? This cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == true) {
+        _vm.delete(index);
+      }
+    }
+  }
+
+  // ---- Build ----
+
+  @override
+  Widget build(BuildContext context) {
+    final processes = _vm.processes;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+      ),
+      body: processes.isEmpty
+          ? const Center(
+              child: Text(
+                'No processes configured',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            )
+          : ReorderableListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: processes.length,
+              onReorderItem: _vm.reorderItem,
+              proxyDecorator: _proxyDecorator,
+              itemBuilder: (context, index) {
+                return _ProcessRow(
+                  key: ValueKey(processes[index].name),
+                  index: index,
+                  config: processes[index],
+                  isRunning: _vm.isRunning(processes[index].name),
+                  onTap: () => _openEditPage(index),
+                  onCopy: () => _vm.copy(index),
+                  onDelete: () => _confirmDelete(index),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openAddPage,
+        tooltip: 'Add Process',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _proxyDecorator(Widget child, int index, Animation<double> anim) {
+    return AnimatedBuilder(
+      animation: anim,
+      builder: (context, child) {
+        final t = anim.value;
+        final elevation = (1 - t) * 0 + t * 6;
+        return Material(
+          elevation: elevation,
+          color: Colors.transparent,
+          shadowColor: Colors.black26,
+          child: child,
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+/// A single row in the process list.
+class _ProcessRow extends StatelessWidget {
+  final int index;
+  final ProcessConfig config;
+  final bool isRunning;
+  final VoidCallback onTap;
+  final VoidCallback onCopy;
+  final VoidCallback onDelete;
+
+  const _ProcessRow({
+    super.key,
+    required this.index,
+    required this.config,
+    required this.isRunning,
+    required this.onTap,
+    required this.onCopy,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          child: Row(
+            children: [
+              ReorderableDragStartListener(
+                index: index,
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Icon(Icons.drag_handle, color: Colors.grey),
+                ),
+              ),
+              if (isRunning)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Icon(Icons.play_arrow, color: Colors.green, size: 18),
+                ),
+              Expanded(
+                child: Text(
+                  config.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.content_copy, size: 20),
+                tooltip: 'Copy',
+                onPressed: onCopy,
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                tooltip: 'Delete',
+                onPressed: onDelete,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

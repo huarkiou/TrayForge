@@ -120,8 +120,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Should now be on the detail page.
-      expect(find.text('Coming soon'), findsOneWidget);
+      // Should now be on the detail page ("No output yet" appears both
+      // on the card below and on the detail page body).
+      expect(find.text('No output yet'), findsWidgets);
       // AppBar should show process name.
       expect(find.text('svc-a'), findsWidgets);
     });
