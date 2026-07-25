@@ -20,7 +20,7 @@ class ProcessConfig {
   final bool singleton;
   final bool autostart;
   final String? webuiPattern;
-  final bool deleteBeforeStart;
+  final List<String> deleteBeforeStart;
   final int? maxRestarts;
   final Map<String, String>? env;
 
@@ -32,7 +32,7 @@ class ProcessConfig {
     this.singleton = false,
     this.autostart = false,
     this.webuiPattern,
-    this.deleteBeforeStart = false,
+    this.deleteBeforeStart = const [],
     this.maxRestarts,
     this.env,
   });
@@ -59,12 +59,23 @@ class ProcessConfig {
       singleton: json['singleton'] as bool? ?? false,
       autostart: json['autostart'] as bool? ?? false,
       webuiPattern: json['webui_pattern'] as String?,
-      deleteBeforeStart: json['delete_before_start'] as bool? ?? false,
+      deleteBeforeStart: _parseStringList(json['delete_before_start']),
       maxRestarts: json['max_restarts'] as int?,
       env: (json['env'] as Map<String, dynamic>?)?.map(
         (k, v) => MapEntry(k, v as String),
       ),
     );
+  }
+
+  /// Parses a JSON value that should be a list of strings.
+  ///
+  /// Accepts a [List] (Python TrayForge format). Returns `[]` for
+  /// any other type (e.g. old Flutter `bool` format) or when missing.
+  static List<String> _parseStringList(dynamic value) {
+    if (value is List) {
+      return value.map((e) => e.toString()).toList();
+    }
+    return [];
   }
 
   ProcessConfig copyWith({
@@ -75,7 +86,7 @@ class ProcessConfig {
     bool? singleton,
     bool? autostart,
     String? webuiPattern,
-    bool? deleteBeforeStart,
+    List<String>? deleteBeforeStart,
     int? maxRestarts,
     Map<String, String>? env,
     bool clearCwd = false,

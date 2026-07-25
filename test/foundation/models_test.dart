@@ -26,7 +26,7 @@ void main() {
       expect(config.singleton, false);
       expect(config.autostart, false);
       expect(config.webuiPattern, isNull);
-      expect(config.deleteBeforeStart, false);
+      expect(config.deleteBeforeStart, isEmpty);
       expect(config.maxRestarts, isNull);
       expect(config.env, isNull);
     });
@@ -40,7 +40,7 @@ void main() {
         singleton: true,
         autostart: true,
         webuiPattern: r'http://[\d.:]+',
-        deleteBeforeStart: true,
+        deleteBeforeStart: ['file.lock'],
         maxRestarts: 5,
         env: {'KEY': 'value'},
       );
@@ -51,7 +51,7 @@ void main() {
       expect(config.singleton, true);
       expect(config.autostart, true);
       expect(config.webuiPattern, r'http://[\d.:]+');
-      expect(config.deleteBeforeStart, true);
+      expect(config.deleteBeforeStart, ['file.lock']);
       expect(config.maxRestarts, 5);
       expect(config.env, {'KEY': 'value'});
     });
@@ -78,7 +78,7 @@ void main() {
           singleton: true,
           autostart: true,
           webuiPattern: r'http://.*',
-          deleteBeforeStart: true,
+          deleteBeforeStart: ['a.lock', 'b.lock'],
           maxRestarts: 3,
           env: {'A': '1'},
         );
@@ -90,7 +90,7 @@ void main() {
         expect(json['singleton'], true);
         expect(json['autostart'], true);
         expect(json['webui_pattern'], r'http://.*');
-        expect(json['delete_before_start'], true);
+        expect(json['delete_before_start'], ['a.lock', 'b.lock']);
         expect(json['max_restarts'], 3);
         expect(json['env'], {'A': '1'});
       });
@@ -115,7 +115,7 @@ void main() {
           'singleton': true,
           'autostart': true,
           'webui_pattern': r'http://.*',
-          'delete_before_start': true,
+          'delete_before_start': ['lock.file'],
           'max_restarts': 3,
           'env': {'KEY': 'val'},
         };
@@ -127,7 +127,7 @@ void main() {
         expect(config.singleton, true);
         expect(config.autostart, true);
         expect(config.webuiPattern, r'http://.*');
-        expect(config.deleteBeforeStart, true);
+        expect(config.deleteBeforeStart, ['lock.file']);
         expect(config.maxRestarts, 3);
         expect(config.env, {'KEY': 'val'});
       });
@@ -137,8 +137,18 @@ void main() {
         final config = ProcessConfig.fromJson(json);
         expect(config.singleton, false);
         expect(config.autostart, false);
-        expect(config.deleteBeforeStart, false);
+        expect(config.deleteBeforeStart, isEmpty);
         expect(config.maxRestarts, isNull);
+      });
+
+      test('migrates old bool delete_before_start to empty list', () {
+        final json = {
+          'name': 'old',
+          'cmd': 'run',
+          'delete_before_start': true, // old Flutter format
+        };
+        final config = ProcessConfig.fromJson(json);
+        expect(config.deleteBeforeStart, isEmpty);
       });
     });
 

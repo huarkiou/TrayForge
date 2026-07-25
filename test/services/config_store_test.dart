@@ -58,7 +58,7 @@ void main() {
               singleton: true,
               autostart: true,
               webuiPattern: r'http://[\d.:]+',
-              deleteBeforeStart: true,
+              deleteBeforeStart: ['file.lock'],
               maxRestarts: 3,
               env: {'KEY': 'val'},
             ),
@@ -75,7 +75,7 @@ void main() {
         expect(p.singleton, true);
         expect(p.autostart, true);
         expect(p.webuiPattern, r'http://[\d.:]+');
-        expect(p.deleteBeforeStart, true);
+        expect(p.deleteBeforeStart, ['file.lock']);
         expect(p.maxRestarts, 3);
         expect(p.env, {'KEY': 'val'});
       });
@@ -150,7 +150,7 @@ void main() {
               singleton: true,
               autostart: false,
               webuiPattern: r'http://.*',
-              deleteBeforeStart: true,
+              deleteBeforeStart: ['file.lock'],
               maxRestarts: 5,
               env: {'A': 'B'},
             ),
