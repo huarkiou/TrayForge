@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/screens/process_detail_screen.dart';
+import 'package:trayforge/screens/process_edit_page.dart';
 import 'package:trayforge/screens/settings_page.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
@@ -66,6 +68,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         actions: [
           if (widget.settingsViewModel != null)
             IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: 'Add process',
+              onPressed: () => _openAddPage(context),
+            ),
+          if (widget.settingsViewModel != null)
+            IconButton(
               icon: const Icon(Icons.settings),
               tooltip: 'Settings',
               onPressed: () {
@@ -103,17 +111,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: () {
-              if (widget.settingsViewModel != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        SettingsPage(viewModel: widget.settingsViewModel!),
-                  ),
-                );
-              }
-            },
+            onPressed: () => _openAddPage(context),
             icon: const Icon(Icons.add),
             label: const Text('Add Process'),
           ),
@@ -123,23 +121,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildDashboardBody(BuildContext context) {
-    return ListView.builder(
+    return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: widget.viewModel.processViewModels.length,
+      onReorderItem: (oldIndex, newIndex) {
+        widget.settingsViewModel?.reorderItem(oldIndex, newIndex);
+      },
       itemBuilder: (context, index) {
         final vm = widget.viewModel.processViewModels[index];
         return ProcessCard(
+          key: ValueKey(vm.name),
           viewModel: vm,
+          dragHandleIndex: index,
+          onEditTap: () => _openEditPage(context, vm.name),
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ProcessDetailPage(viewModel: vm),
+                builder: (_) => ProcessDetailPage(
+                  viewModel: vm,
+                  onEditTap: () {
+                    Navigator.of(context).pop();
+                    _openEditPage(context, vm.name);
+                  },
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  void _openAddPage(BuildContext context) {
+    _navigateToEdit(context, null, null, null);
+  }
+
+  void _openEditPage(BuildContext context, String name) {
+    if (widget.settingsViewModel == null) return;
+    final processes = widget.settingsViewModel!.processes;
+    final editIndex = processes.indexWhere((p) => p.name == name);
+    if (editIndex == -1) return;
+    _navigateToEdit(context, processes[editIndex], editIndex, null);
+  }
+
+  void _navigateToEdit(
+    BuildContext context,
+    ProcessConfig? initial,
+    int? editIndex,
+    String? name,
+  ) {
+    if (widget.settingsViewModel == null) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProcessEditPage(
+          settingsViewModel: widget.settingsViewModel!,
+          initial: initial,
+          editIndex: editIndex,
+        ),
+      ),
+      (_) => false,
     );
   }
 }

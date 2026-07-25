@@ -319,5 +319,49 @@ void main() {
 
       expect(() => vm.outputLines.add('test'), throwsUnsupportedError);
     });
+
+    // ---- Safe dispose ----
+
+    test('addListener is no-op after dispose', () {
+      writeConfig(tmpDir, _testConfig());
+      manager = createManager();
+
+      final vm = ProcessViewModel(
+        name: 'test-svc',
+        processManager: manager,
+        outputHistoryLimit: 100,
+      );
+
+      vm.dispose();
+
+      // addListener after dispose should not throw.
+      var called = false;
+      expect(() {
+        vm.addListener(() => called = true);
+      }, returnsNormally);
+
+      // The listener should never be called.
+      expect(called, false);
+    });
+
+    test('removeListener is no-op after dispose', () {
+      writeConfig(tmpDir, _testConfig());
+      manager = createManager();
+
+      final vm = ProcessViewModel(
+        name: 'test-svc',
+        processManager: manager,
+        outputHistoryLimit: 100,
+      );
+
+      // Add a listener first.
+      final listener = () {};
+      vm.addListener(listener);
+
+      vm.dispose();
+
+      // removeListener after dispose should not throw.
+      expect(() => vm.removeListener(listener), returnsNormally);
+    });
   });
 }

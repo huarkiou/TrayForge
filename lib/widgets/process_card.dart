@@ -12,11 +12,19 @@ import 'package:trayforge/widgets/toggle_button.dart';
 class ProcessCard extends StatelessWidget {
   final ProcessViewModel viewModel;
   final VoidCallback onTap;
+  final VoidCallback? onEditTap;
+  final int? dragHandleIndex;
 
   /// Number of output lines to display in the card body.
   static const int previewLines = 15;
 
-  const ProcessCard({super.key, required this.viewModel, required this.onTap});
+  const ProcessCard({
+    super.key,
+    required this.viewModel,
+    required this.onTap,
+    this.onEditTap,
+    this.dragHandleIndex,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +41,11 @@ class ProcessCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Header(viewModel: viewModel),
+                  _Header(
+                    viewModel: viewModel,
+                    onEditTap: onEditTap,
+                    dragHandleIndex: dragHandleIndex,
+                  ),
                   const SizedBox(height: 8),
                   _OutputPreview(viewModel: viewModel),
                 ],
@@ -46,16 +58,42 @@ class ProcessCard extends StatelessWidget {
   }
 }
 
-/// Header row: status dot, name, WebUI button, toggle button.
+/// Header row: status dot, name, WebUI button, toggle button, edit button.
 class _Header extends StatelessWidget {
   final ProcessViewModel viewModel;
+  final VoidCallback? onEditTap;
+  final int? dragHandleIndex;
 
-  const _Header({required this.viewModel});
+  const _Header({
+    required this.viewModel,
+    this.onEditTap,
+    this.dragHandleIndex,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final dragHandle = dragHandleIndex != null
+        ? ReorderableDragStartListener(
+            index: dragHandleIndex!,
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: Icon(Icons.drag_handle, color: Colors.grey),
+            ),
+          )
+        : null;
+
+    final editButton = onEditTap != null
+        ? IconButton(
+            icon: const Icon(Icons.edit, size: 20),
+            tooltip: 'Edit process',
+            onPressed: onEditTap,
+            visualDensity: VisualDensity.compact,
+          )
+        : null;
+
     return Row(
       children: [
+        if (dragHandle != null) dragHandle,
         StatusDot(state: viewModel.state),
         const SizedBox(width: 8),
         Expanded(
@@ -82,6 +120,7 @@ class _Header extends StatelessWidget {
           viewModel: viewModel,
           visualDensity: VisualDensity.compact,
         ),
+        if (editButton != null) editButton,
       ],
     );
   }

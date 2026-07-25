@@ -13,8 +13,9 @@ import 'package:trayforge/widgets/toggle_button.dart';
 /// text area with auto-scroll and scroll-lock behaviour.
 class ProcessDetailPage extends StatefulWidget {
   final ProcessViewModel viewModel;
+  final VoidCallback? onEditTap;
 
-  const ProcessDetailPage({super.key, required this.viewModel});
+  const ProcessDetailPage({super.key, required this.viewModel, this.onEditTap});
 
   @override
   State<ProcessDetailPage> createState() => _ProcessDetailPageState();
@@ -113,6 +114,12 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
             ),
           ),
           actions: [
+            if (widget.onEditTap != null)
+              IconButton(
+                icon: const Icon(Icons.edit),
+                tooltip: 'Edit process',
+                onPressed: widget.onEditTap,
+              ),
             ListenableBuilder(
               listenable: _vm,
               builder: (context, _) {

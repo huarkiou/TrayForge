@@ -200,12 +200,66 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     Navigator.of(context).pop();
   }
 
+  void _duplicate() {
+    widget.settingsViewModel.copy(widget.editIndex!);
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _confirmDelete() async {
+    final name = widget.initial?.name ?? '';
+    final isRunning = widget.settingsViewModel.isRunning(name);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isRunning ? 'Stop and delete?' : 'Delete process?'),
+        content: Text(
+          isRunning
+              ? '"$name" is currently running. It will be stopped and the configuration deleted.'
+              : 'Delete "$name"? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(isRunning ? 'Stop and Delete' : 'Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (isRunning) {
+      // Fire-and-forget: do not wait for process exit.
+      widget.settingsViewModel.stopProcess(name);
+    }
+    widget.settingsViewModel.delete(widget.editIndex!);
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.isEditing ? 'Edit Process' : 'Add Process'),
         actions: [
+          if (widget.isEditing)
+            TextButton(
+              onPressed: _confirmDelete,
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          if (widget.isEditing)
+            TextButton(
+              onPressed: _duplicate,
+              child: const Text('Duplicate'),
+            ),
           TextButton(
             onPressed: _regexError == null ? _save : null,
             child: const Text('Save'),

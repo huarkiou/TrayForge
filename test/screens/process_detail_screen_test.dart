@@ -438,5 +438,41 @@ void main() {
       // Output should still be there — the ViewModel holds the buffer.
       expect(find.text('persisted line'), findsOneWidget);
     });
+
+    // ---- Edit icon ----
+
+    testWidgets('hides edit icon when onEditTap is null', (tester) async {
+      await tester.pumpWidget(buildPage());
+      await tester.pump();
+
+      expect(find.byIcon(Icons.edit), findsNothing);
+    });
+
+    testWidgets('shows edit icon when onEditTap is provided', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProcessDetailPage(viewModel: vm, onEditTap: () {}),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byIcon(Icons.edit), findsOneWidget);
+    });
+
+    testWidgets('tapping edit icon calls onEditTap', (tester) async {
+      var editTapped = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProcessDetailPage(
+            viewModel: vm,
+            onEditTap: () => editTapped = true,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.edit));
+      expect(editTapped, true);
+    });
   });
 }

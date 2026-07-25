@@ -85,7 +85,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Settings'), findsOneWidget);
+      // Navigated to ProcessEditPage in add mode (AppBar title is 'Add Process').
+      expect(find.widgetWithText(AppBar, 'Add Process'), findsOneWidget);
     });
 
     // ---- Dashboard with cards ----
@@ -109,7 +110,7 @@ void main() {
 
       expect(find.text('svc-a'), findsOneWidget);
       expect(find.text('svc-b'), findsOneWidget);
-      expect(find.byType(ListView), findsOneWidget);
+      expect(find.byType(ReorderableListView), findsOneWidget);
     });
 
     // ---- Navigation to detail page ----
@@ -210,6 +211,171 @@ void main() {
       // But configChanged is the trigger. We can't easily test this
       // with the fake since it has a const empty stream.
       // This is better tested at the ViewModel level, which we already do.
+    });
+
+    // ---- "+" Add button ----
+
+    testWidgets('shows + button in AppBar when settingsViewModel is provided', (
+      tester,
+    ) async {
+      final dm = DashboardViewModel(
+        configStore: _FakeConfigStore(AppConfig(processes: [])),
+        processManager: _FakeProcessManager(),
+      );
+      final sm = SettingsViewModel(
+        configStore: _FakeConfigStore(AppConfig(processes: [])),
+        processManager: _FakeProcessManager(),
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      expect(find.byTooltip('Add process'), findsOneWidget);
+    });
+
+    testWidgets('does not show + button when settingsViewModel is null', (
+      tester,
+    ) async {
+      final dm = DashboardViewModel(
+        configStore: _FakeConfigStore(AppConfig(processes: [])),
+        processManager: _FakeProcessManager(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: DashboardScreen(viewModel: dm)),
+      );
+
+      expect(find.byTooltip('Add process'), findsNothing);
+    });
+
+    testWidgets('+ button navigates to ProcessEditPage in add mode', (
+      tester,
+    ) async {
+      final dm = DashboardViewModel(
+        configStore: _FakeConfigStore(AppConfig(processes: [])),
+        processManager: _FakeProcessManager(),
+      );
+      final sm = SettingsViewModel(
+        configStore: _FakeConfigStore(AppConfig(processes: [])),
+        processManager: _FakeProcessManager(),
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      await tester.tap(find.byTooltip('Add process'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.widgetWithText(AppBar, 'Add Process'), findsOneWidget);
+    });
+
+    // ---- Edit icon on cards ----
+
+    testWidgets('shows edit icon on process cards', (tester) async {
+      final dm = DashboardViewModel(
+        configStore: _FakeConfigStore(
+          AppConfig(
+            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          ),
+        ),
+        processManager: _FakeProcessManager(),
+      );
+      final sm = SettingsViewModel(
+        configStore: _FakeConfigStore(
+          AppConfig(
+            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          ),
+        ),
+        processManager: _FakeProcessManager(),
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      expect(find.byIcon(Icons.edit), findsOneWidget);
+    });
+
+    testWidgets('tapping edit icon navigates to ProcessEditPage', (
+      tester,
+    ) async {
+      final dm = DashboardViewModel(
+        configStore: _FakeConfigStore(
+          AppConfig(
+            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          ),
+        ),
+        processManager: _FakeProcessManager(),
+      );
+      final sm = SettingsViewModel(
+        configStore: _FakeConfigStore(
+          AppConfig(
+            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          ),
+        ),
+        processManager: _FakeProcessManager(),
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.edit));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.widgetWithText(AppBar, 'Edit Process'), findsOneWidget);
+    });
+
+    // ---- Drag-to-reorder ----
+
+    testWidgets('shows drag handles on process cards', (tester) async {
+      final dm = DashboardViewModel(
+        configStore: _FakeConfigStore(
+          AppConfig(
+            processes: [
+              const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+              const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+            ],
+          ),
+        ),
+        processManager: _FakeProcessManager(),
+      );
+      final sm = SettingsViewModel(
+        configStore: _FakeConfigStore(
+          AppConfig(
+            processes: [
+              const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+              const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+            ],
+          ),
+        ),
+        processManager: _FakeProcessManager(),
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
     });
   });
 }

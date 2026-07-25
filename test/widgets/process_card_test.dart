@@ -312,5 +312,76 @@ void main() {
       await tester.tap(find.byType(InkWell).first);
       expect(tapped, true);
     });
+
+    // ---- Edit icon ----
+
+    testWidgets('hides edit icon when onEditTap is null', (tester) async {
+      await tester.pumpWidget(buildCard());
+      await tester.pump();
+
+      expect(find.byIcon(Icons.edit), findsNothing);
+    });
+
+    testWidgets('shows edit icon when onEditTap is non-null', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ProcessCard(viewModel: vm, onTap: () {}, onEditTap: () {}),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byIcon(Icons.edit), findsOneWidget);
+    });
+
+    testWidgets('tapping edit icon calls onEditTap', (tester) async {
+      var editTapped = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ProcessCard(
+              viewModel: vm,
+              onTap: () {},
+              onEditTap: () => editTapped = true,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.edit));
+      expect(editTapped, true);
+    });
+
+    // ---- Drag handle ----
+
+    testWidgets('hides drag handle when dragHandleIndex is null', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildCard());
+      await tester.pump();
+
+      expect(find.byIcon(Icons.drag_handle), findsNothing);
+    });
+
+    testWidgets('shows drag handle when dragHandleIndex is non-null', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ProcessCard(
+              viewModel: vm,
+              onTap: () {},
+              dragHandleIndex: 0,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byIcon(Icons.drag_handle), findsOneWidget);
+    });
   });
 }

@@ -16,6 +16,7 @@ class ProcessViewModel extends ChangeNotifier {
   final ProcessManager _processManager;
   final int _outputHistoryLimit;
 
+  bool _disposed = false;
   ProcState _state = ProcState.stopped;
   final List<String> _outputLines = [];
   Uri? _webuiUrl;
@@ -112,7 +113,20 @@ class ProcessViewModel extends ChangeNotifier {
   }
 
   @override
+  void addListener(VoidCallback listener) {
+    if (_disposed) return;
+    super.addListener(listener);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    if (_disposed) return;
+    super.removeListener(listener);
+  }
+
+  @override
   void dispose() {
+    _disposed = true;
     _stateSub?.cancel();
     _outputSub?.cancel();
     _webuiSub?.cancel();

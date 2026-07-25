@@ -52,23 +52,40 @@ class DashboardViewModel extends ChangeNotifier {
   }
 
   void _rebuild() {
-    for (final vm in _processViewModels) {
-      vm.dispose();
-    }
-    _processViewModels.clear();
-
     final config = _configStore.load();
     final processes = config?.processes ?? <ProcessConfig>[];
+    final outputHistoryLimit = config?.outputHistoryLimit ?? 1000;
 
-    for (final proc in processes) {
-      _processViewModels.add(
-        ProcessViewModel(
-          name: proc.name,
-          processManager: _processManager,
-          outputHistoryLimit: config?.outputHistoryLimit ?? 1000,
-        ),
-      );
+    // Build a name→VM map from existing instances for reuse.
+    final existingByName = <String, ProcessViewModel>{};
+    for (final vm in _processViewModels) {
+      existingByName[vm.name] = vm;
     }
+
+    final newVms = <ProcessViewModel>[];
+    for (final proc in processes) {
+      final existing = existingByName.remove(proc.name);
+      if (existing != null) {
+        newVms.add(existing);
+      } else {
+        newVms.add(
+          ProcessViewModel(
+            name: proc.name,
+            processManager: _processManager,
+            outputHistoryLimit: outputHistoryLimit,
+          ),
+        );
+      }
+    }
+
+    // Dispose VMs for processes that no longer exist.
+    for (final vm in existingByName.values) {
+      vm.dispose();
+    }
+
+    _processViewModels
+      ..clear()
+      ..addAll(newVms);
 
     notifyListeners();
   }

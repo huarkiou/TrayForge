@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:trayforge/foundation/models.dart';
-import 'package:trayforge/screens/process_edit_page.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
-/// Settings page with a reorderable list of process configurations.
+/// Settings page showing only global configuration options.
 ///
-/// Supports add (FAB), edit (tap name), copy, delete (with running-process
-/// awareness), and drag-to-reorder. Changes are persisted through
-/// [SettingsViewModel] and trigger a [ProcessManager] reload.
+/// Process CRUD has moved to the Dashboard and process edit form.
 class SettingsPage extends StatefulWidget {
   final SettingsViewModel viewModel;
 
@@ -97,93 +93,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ---- Navigation ----
-
-  Future<void> _openAddPage() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ProcessEditPage(settingsViewModel: _vm),
-      ),
-    );
-  }
-
-  Future<void> _openEditPage(int index) async {
-    final config = _vm.processes[index];
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ProcessEditPage(
-          settingsViewModel: _vm,
-          initial: config,
-          editIndex: index,
-        ),
-      ),
-    );
-  }
-
-  // ---- Delete ----
-
-  Future<void> _confirmDelete(int index) async {
-    final config = _vm.processes[index];
-
-    if (_vm.isRunning(config.name)) {
-      final ok = await _showDeleteDialog(
-        title: 'Stop and delete?',
-        content:
-            '"${config.name}" is currently running. '
-            'Do you want to stop it and delete the configuration?',
-        confirmLabel: 'Stop and Delete',
-      );
-      if (ok) {
-        await _vm.stopProcess(config.name);
-        _vm.delete(index);
-      }
-    } else {
-      final ok = await _showDeleteDialog(
-        title: 'Delete process?',
-        content: 'Delete "${config.name}"? This cannot be undone.',
-        confirmLabel: 'Delete',
-      );
-      if (ok) {
-        _vm.delete(index);
-      }
-    }
-  }
-
-  /// Shows a confirmation dialog with a destructive action.
-  Future<bool> _showDeleteDialog({
-    required String title,
-    required String content,
-    required String confirmLabel,
-  }) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: Text(confirmLabel),
-          ),
-        ],
-      ),
-    );
-    return result == true;
-  }
-
   // ---- Build ----
 
   @override
   Widget build(BuildContext context) {
-    final processes = _vm.processes;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: Column(
@@ -195,139 +108,7 @@ class _SettingsPageState extends State<SettingsPage> {
             value: _vm.autostartEnabled,
             onChanged: (_) => _vm.toggleAutostart(),
           ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Text(
-                  'Processes',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: processes.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No processes configured',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                  )
-                : ReorderableListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: processes.length,
-                    onReorderItem: _vm.reorderItem,
-                    proxyDecorator: _proxyDecorator,
-                    itemBuilder: (context, index) {
-                      return _ProcessRow(
-                        key: ValueKey(processes[index].name),
-                        index: index,
-                        config: processes[index],
-                        isRunning: _vm.isRunning(processes[index].name),
-                        onTap: () => _openEditPage(index),
-                        onCopy: () => _vm.copy(index),
-                        onDelete: () => _confirmDelete(index),
-                      );
-                    },
-                  ),
-          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openAddPage,
-        tooltip: 'Add Process',
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  Widget _proxyDecorator(Widget child, int index, Animation<double> anim) {
-    return AnimatedBuilder(
-      animation: anim,
-      builder: (context, child) {
-        final t = anim.value;
-        final elevation = (1 - t) * 0 + t * 6;
-        return Material(
-          elevation: elevation,
-          color: Colors.transparent,
-          shadowColor: Colors.black26,
-          child: child,
-        );
-      },
-      child: child,
-    );
-  }
-}
-
-/// A single row in the process list.
-class _ProcessRow extends StatelessWidget {
-  final int index;
-  final ProcessConfig config;
-  final bool isRunning;
-  final VoidCallback onTap;
-  final VoidCallback onCopy;
-  final VoidCallback onDelete;
-
-  const _ProcessRow({
-    super.key,
-    required this.index,
-    required this.config,
-    required this.isRunning,
-    required this.onTap,
-    required this.onCopy,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-          child: Row(
-            children: [
-              ReorderableDragStartListener(
-                index: index,
-                child: const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Icon(Icons.drag_handle, color: Colors.grey),
-                ),
-              ),
-              if (isRunning)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: Icon(Icons.play_arrow, color: Colors.green, size: 18),
-                ),
-              Expanded(
-                child: Text(
-                  config.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.content_copy, size: 20),
-                tooltip: 'Copy',
-                onPressed: onCopy,
-                visualDensity: VisualDensity.compact,
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 20),
-                tooltip: 'Delete',
-                onPressed: onDelete,
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
