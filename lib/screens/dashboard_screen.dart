@@ -101,13 +101,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () {
-              // TODO: navigate to Settings page when implemented.
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Settings not yet implemented'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              if (widget.settingsViewModel != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SettingsPage(
+                      viewModel: widget.settingsViewModel!,
+                    ),
+                  ),
+                );
+              }
             },
             icon: const Icon(Icons.add),
             label: const Text('Add Process'),

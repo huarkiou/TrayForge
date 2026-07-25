@@ -7,6 +7,7 @@ import 'package:trayforge_flutter/screens/dashboard_screen.dart';
 import 'package:trayforge_flutter/services/config_store.dart';
 import 'package:trayforge_flutter/services/process_manager.dart';
 import 'package:trayforge_flutter/viewmodels/dashboard_viewmodel.dart';
+import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
 
 /// A minimal fake that satisfies the [ProcessManager] interface for
 /// DashboardViewModel construction.
@@ -61,21 +62,29 @@ void main() {
       expect(find.text('Add Process'), findsOneWidget);
     });
 
-    testWidgets('welcome screen "Add Process" button shows snackbar',
+    testWidgets('welcome screen "Add Process" button navigates to settings',
         (tester) async {
-      final vm = DashboardViewModel(
-        configStore: _FakeConfigStore(AppConfig(processes: [])),
+      final configStore = _FakeConfigStore(AppConfig(processes: []));
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: _FakeProcessManager(),
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
         processManager: _FakeProcessManager(),
       );
 
       await tester.pumpWidget(
-        MaterialApp(home: DashboardScreen(viewModel: vm)),
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
       );
 
       await tester.tap(find.text('Add Process'));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Settings not yet implemented'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
     });
 
     // ---- Dashboard with cards ----
