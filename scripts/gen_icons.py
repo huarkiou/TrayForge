@@ -52,7 +52,6 @@ def make_icon(color: tuple[int, int, int]) -> Image.Image:
 GREEN = (76, 175, 80)
 YELLOW = (255, 193, 7)
 RED = (244, 67, 54)
-BLUE = (33, 150, 243)
 
 
 def main():
@@ -68,10 +67,6 @@ def main():
 
     make_icon(RED).save(f"{OUTPUT_DIR}/icon-red.png", format="PNG")
     print("Saved icon-red.png")
-
-    # App icon: blue ring for window title bars
-    make_icon(BLUE).save(f"{OUTPUT_DIR}/icon-app.png", format="PNG")
-    print("Saved icon-app.png")
 
 
 if __name__ == "__main__":

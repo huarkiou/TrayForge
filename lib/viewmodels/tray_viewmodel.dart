@@ -28,12 +28,6 @@ class TrayViewModel extends ChangeNotifier {
   final Map<String, ProcState> _states = {};
   final List<StreamSubscription<void>> _subscriptions = [];
 
-  /// Timestamp of the last left-click for double-click detection.
-  DateTime? _lastClickTime;
-
-  /// Duration window for double-click detection.
-  static const _doubleClickWindow = Duration(milliseconds: 400);
-
   TrayViewModel({
     required this._configStore,
     required this._processManager,
@@ -67,14 +61,17 @@ class TrayViewModel extends ChangeNotifier {
 
     final items = <MenuItem>[];
 
-    // Dynamic process items
+    // Dynamic process items — onClick closure captures name directly,
+    // compile-time safe vs string-key dispatch.
     for (final proc in processes) {
-      final state = _states[proc.name] ?? ProcState.stopped;
+      final name = proc.name;
+      final state = _states[name] ?? ProcState.stopped;
       final isRunning = state == ProcState.running;
-      final label = isRunning ? '\u2713 ${proc.name}' : '   ${proc.name}';
+      final label = isRunning ? '\u2713 $name' : '   $name';
       items.add(MenuItem(
-        key: 'proc:${proc.name}',
+        key: 'proc:$name',
         label: label,
+        onClick: (_) => _toggleProcess(name),
       ));
     }
 
@@ -83,39 +80,18 @@ class TrayViewModel extends ChangeNotifier {
     }
 
     // Fixed items
-    items.add(MenuItem(key: 'dashboard', label: 'Dashboard'));
-    items.add(MenuItem(key: 'exit', label: 'Exit'));
+    items.add(MenuItem(
+      key: 'dashboard',
+      label: 'Dashboard',
+      onClick: (_) => onShowDashboard(),
+    ));
+    items.add(MenuItem(
+      key: 'exit',
+      label: 'Exit',
+      onClick: (_) => onExit(),
+    ));
 
     return Menu(items: items);
-  }
-
-  /// Handles a menu item click from the tray context menu.
-  void handleMenuItemClick(MenuItem menuItem) {
-    final key = menuItem.key ?? '';
-
-    if (key == 'dashboard') {
-      onShowDashboard();
-    } else if (key == 'exit') {
-      onExit();
-    } else if (key.startsWith('proc:')) {
-      final name = key.substring(5);
-      _toggleProcess(name);
-    }
-  }
-
-  /// Handles a left-click on the tray icon for double-click detection.
-  ///
-  /// Two clicks within [_doubleClickWindow] open the Dashboard.
-  void handleIconMouseDown() {
-    final now = DateTime.now();
-    final last = _lastClickTime;
-
-    if (last != null && now.difference(last) < _doubleClickWindow) {
-      _lastClickTime = null;
-      onShowDashboard();
-    } else {
-      _lastClickTime = now;
-    }
   }
 
   /// Called when the process list changes (config reload).
@@ -141,6 +117,7 @@ class TrayViewModel extends ChangeNotifier {
       sub.cancel();
     }
     _subscriptions.clear();
+    _states.clear();
 
     final config = _configStore.load();
     final processes = config?.processes ?? <ProcessConfig>[];
@@ -152,6 +129,9 @@ class TrayViewModel extends ChangeNotifier {
 
     for (final proc in processes) {
       final name = proc.name;
+      // Seed from ProcessManager synchronously so the colour is correct
+      // before the first async stateStream event fires.
+      _states[name] = _processManager.getState(name);
       _subscriptions.add(
         _processManager.stateStream(name).listen((state) {
           _states[name] = state;

@@ -119,9 +119,9 @@ Future<void> main() async {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
-void _showDashboard() {
-  windowManager.show();
-  windowManager.focus();
+Future<void> _showDashboard() async {
+  await windowManager.show();
+  await windowManager.focus();
 }
 
 Future<void> _exitApp() async {
@@ -149,8 +149,10 @@ Future<void> _exitApp() async {
 
 void _onTrayStateChanged() {
   // Fire-and-forget: update tray icon and menu when state changes.
-  trayManager.setIcon(_trayViewModel.iconPath);
-  trayManager.setContextMenu(_trayViewModel.buildMenu());
+  trayManager.setIcon(_trayViewModel.iconPath)
+      .catchError((e) => _logger.log('Tray setIcon failed: $e'));
+  trayManager.setContextMenu(_trayViewModel.buildMenu())
+      .catchError((e) => _logger.log('Tray setContextMenu failed: $e'));
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +169,10 @@ class _AppWindowListener extends WindowListener {
 }
 
 /// Handles tray events: menu clicks and double-click.
+///
+/// Menu item actions are handled by onClick closures set in
+/// [TrayViewModel.buildMenu]; this listener only handles
+/// double-click detection on the tray icon itself.
 class _AppTrayListener extends TrayListener {
   DateTime? _lastMouseDown;
 
@@ -180,11 +186,6 @@ class _AppTrayListener extends TrayListener {
     if (last != null && now.difference(last) < const Duration(milliseconds: 400)) {
       _showDashboard();
     }
-  }
-
-  @override
-  void onTrayMenuItemClick(MenuItem menuItem) {
-    _trayViewModel.handleMenuItemClick(menuItem);
   }
 }
 
