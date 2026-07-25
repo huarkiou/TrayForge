@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -53,6 +55,13 @@ Future<void> main() async {
   }
 
   _configStore = ConfigStore();
+
+  // Detect corrupted config before ProcessManager constructs.
+  final configFile = File(p.join(_configStore.dataDir, 'config.json'));
+  final configExists = configFile.existsSync();
+  final config = _configStore.load();
+  final configCorrupted = configExists && config == null;
+
   _processManager = ProcessManager(
     configStore: _configStore,
     logger: _logger,
@@ -60,7 +69,11 @@ Future<void> main() async {
 
   // ---- ViewModels ----
 
-  _dashboardViewModel = DashboardViewModel();
+  _dashboardViewModel = DashboardViewModel(
+    configStore: _configStore,
+    processManager: _processManager,
+    configCorrupted: configCorrupted,
+  );
 
   _trayViewModel = TrayViewModel(
     configStore: _configStore,
