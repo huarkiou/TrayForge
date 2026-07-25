@@ -1,3 +1,4 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trayforge_flutter/foundation/models.dart';
@@ -39,6 +40,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
   String _encoding = 'utf-8';
   bool _singleton = false;
   bool _autostart = false;
+  bool _cleanupCwd = false;
   List<_EnvRow> _envRows = [];
 
   String? _regexError;
@@ -53,6 +55,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     _encoding = p?.encoding ?? 'utf-8';
     _singleton = p?.singleton ?? false;
     _autostart = p?.autostart ?? false;
+    _cleanupCwd = p?.cleanupCwd ?? false;
     _webuiPatternController =
         TextEditingController(text: p?.webuiPattern ?? '');
     _deleteBeforeStartController =
@@ -87,6 +90,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
       encoding: _encoding == 'utf-8' ? null : _encoding,
       singleton: _singleton,
       autostart: _autostart,
+      cleanupCwd: _cleanupCwd,
       webuiPattern: _webuiPatternController.text.trim().isEmpty
           ? null
           : _webuiPatternController.text.trim(),
@@ -113,6 +117,57 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     } on FormatException catch (e) {
       setState(() => _regexError = 'Invalid regex: ${e.message}');
     }
+  }
+
+  // ---- CWD browse ----
+
+  Future<void> _browseCwd() async {
+    final path = await getDirectoryPath();
+    if (path != null) {
+      _cwdController.text = path;
+    }
+  }
+
+  // ---- Multi-line cmd editor ----
+
+  Future<void> _editCmdMultiLine() async {
+    final controller = TextEditingController(text: _cmdController.text);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Command'),
+        content: SizedBox(
+          width: 500,
+          height: 240,
+          child: TextField(
+            controller: controller,
+            maxLines: null,
+            expands: true,
+            textAlignVertical: TextAlignVertical.top,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            decoration: const InputDecoration(
+              hintText: 'Enter command (Ctrl+Enter to save)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result != null) {
+      // Collapse newlines to spaces for single-line command.
+      _cmdController.text = result.replaceAll('\n', ' ').trim();
+    }
+    controller.dispose();
   }
 
   void _save() {
@@ -174,28 +229,52 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
               },
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              controller: _cwdController,
-              decoration: const InputDecoration(
-                labelText: 'Working Directory (cwd)',
-                hintText: 'e.g. C:\\MyApp',
-                border: OutlineInputBorder(),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _cwdController,
+                    decoration: const InputDecoration(
+                      labelText: 'Working Directory (cwd)',
+                      hintText: 'e.g. C:\\MyApp',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.folder_open),
+                  tooltip: 'Browse…',
+                  onPressed: _browseCwd,
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              controller: _cmdController,
-              decoration: const InputDecoration(
-                labelText: 'Command *',
-                hintText: 'e.g. myapp.exe --flag',
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'Command is required';
-                }
-                return null;
-              },
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _cmdController,
+                    decoration: const InputDecoration(
+                      labelText: 'Command *',
+                      hintText: 'e.g. myapp.exe --flag',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Command is required';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.open_in_full),
+                  tooltip: 'Multi-line editor…',
+                  onPressed: _editCmdMultiLine,
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
@@ -207,6 +286,8 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
               items: const [
                 DropdownMenuItem(value: 'utf-8', child: Text('UTF-8')),
                 DropdownMenuItem(value: 'gbk', child: Text('GBK')),
+                DropdownMenuItem(value: 'cp936', child: Text('CP936')),
+                DropdownMenuItem(value: 'latin-1', child: Text('Latin-1')),
               ],
               onChanged: (v) => setState(() => _encoding = v ?? 'utf-8'),
             ),
@@ -225,6 +306,15 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
               title: const Text('Autostart'),
               subtitle: const Text('Start this process automatically on launch'),
               onChanged: (v) => setState(() => _autostart = v ?? false),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+            CheckboxListTile(
+              value: _cleanupCwd,
+              title: const Text('Cleanup CWD'),
+              subtitle: const Text(
+                  'Kill residual processes from the same working directory before start'),
+              onChanged: (v) => setState(() => _cleanupCwd = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
             ),

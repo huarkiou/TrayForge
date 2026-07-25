@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:trayforge_flutter/foundation/models.dart';
 import 'package:trayforge_flutter/screens/process_edit_page.dart';
 import 'package:trayforge_flutter/viewmodels/settings_viewmodel.dart';
@@ -33,6 +34,68 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _onChanged() => setState(() {});
+
+  // ---- Global settings ----
+
+  Widget _buildGlobalSettings(BuildContext context) {
+    final refreshCtrl = TextEditingController(
+      text: _vm.outputRefreshMs.toString(),
+    );
+    final historyCtrl = TextEditingController(
+      text: _vm.outputHistoryLimit.toString(),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: refreshCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Output refresh (ms)',
+                helperText: 'Lower = smoother, higher = less CPU',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onFieldSubmitted: (v) {
+                final val = int.tryParse(v);
+                if (val != null && val >= 100 && val <= 5000) {
+                  _vm.setOutputRefreshMs(val);
+                } else {
+                  refreshCtrl.text = _vm.outputRefreshMs.toString();
+                }
+              },
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: TextFormField(
+              controller: historyCtrl,
+              decoration: const InputDecoration(
+                labelText: 'History limit',
+                helperText: 'Max lines per process',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onFieldSubmitted: (v) {
+                final val = int.tryParse(v);
+                if (val != null && val >= 100) {
+                  _vm.setOutputHistoryLimit(val);
+                } else {
+                  historyCtrl.text = _vm.outputHistoryLimit.toString();
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ---- Navigation ----
 
@@ -127,12 +190,23 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: Column(
         children: [
+          _buildGlobalSettings(context),
+          const Divider(height: 1),
           SwitchListTile(
             title: const Text('Launch at startup'),
             value: _vm.autostartEnabled,
             onChanged: (_) => _vm.toggleAutostart(),
           ),
           const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Text('Processes',
+                    style: Theme.of(context).textTheme.titleSmall),
+              ],
+            ),
+          ),
           Expanded(
             child: processes.isEmpty
                 ? const Center(

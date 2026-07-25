@@ -19,6 +19,8 @@ class SettingsViewModel extends ChangeNotifier {
   final Autostart _autostart;
 
   List<ProcessConfig> _processes = [];
+  int _outputRefreshMs = 500;
+  int _outputHistoryLimit = 1000;
   StreamSubscription<void>? _configSub;
 
   SettingsViewModel({
@@ -39,6 +41,24 @@ class SettingsViewModel extends ChangeNotifier {
   bool isRunning(String name) {
     final state = _processManager.getState(name);
     return state.isActive;
+  }
+
+  /// Output batch interval in milliseconds.
+  int get outputRefreshMs => _outputRefreshMs;
+
+  /// Maximum lines retained per process output buffer.
+  int get outputHistoryLimit => _outputHistoryLimit;
+
+  /// Updates [outputRefreshMs] and persists.
+  void setOutputRefreshMs(int value) {
+    _outputRefreshMs = value;
+    _saveGlobals();
+  }
+
+  /// Updates [outputHistoryLimit] and persists.
+  void setOutputHistoryLimit(int value) {
+    _outputHistoryLimit = value;
+    _saveGlobals();
   }
 
   /// Stops a running process by name.
@@ -123,6 +143,20 @@ class SettingsViewModel extends ChangeNotifier {
   void _reload() {
     final config = _configStore.load();
     _processes = config?.processes.toList() ?? [];
+    _outputRefreshMs = config?.outputRefreshMs ?? 500;
+    _outputHistoryLimit = config?.outputHistoryLimit ?? 1000;
+    notifyListeners();
+  }
+
+  /// Persists only global settings (refresh interval, history limit).
+  void _saveGlobals() {
+    final config = _configStore.load() ?? AppConfig.defaultConfig();
+    final newConfig = AppConfig(
+      outputRefreshMs: _outputRefreshMs,
+      outputHistoryLimit: _outputHistoryLimit,
+      processes: List<ProcessConfig>.from(config.processes),
+    );
+    _configStore.save(newConfig);
     notifyListeners();
   }
 
