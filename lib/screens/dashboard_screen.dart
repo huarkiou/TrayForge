@@ -140,10 +140,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               MaterialPageRoute(
                 builder: (_) => ProcessDetailPage(
                   viewModel: vm,
-                  onEditTap: () {
-                    Navigator.of(context).pop();
-                    _openEditPage(context, vm.name);
-                  },
+                  onEditTap: () => _openEditPage(context, vm.name),
                 ),
               ),
             );
@@ -181,7 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           editIndex: editIndex,
         ),
       ),
-      (_) => false,
+      (route) => route.isFirst,
     );
   }
 }
