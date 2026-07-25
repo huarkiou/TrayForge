@@ -42,22 +42,86 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _onChanged() => setState(() {});
 
-  void _saveRefreshMs(String v) {
-    final val = int.tryParse(v);
-    if (val != null && val >= 100 && val <= 5000) {
-      _vm.setOutputRefreshMs(val);
-    } else {
-      _refreshCtrl.text = _vm.outputRefreshMs.toString();
-    }
+  void _applyRefreshMs(int val) {
+    _vm.setOutputRefreshMs(val);
+    _refreshCtrl.text = val.toString();
   }
 
-  void _saveHistoryLimit(String v) {
-    final val = int.tryParse(v);
-    if (val != null && val >= 100) {
-      _vm.setOutputHistoryLimit(val);
-    } else {
-      _historyCtrl.text = _vm.outputHistoryLimit.toString();
-    }
+  void _applyHistoryLimit(int val) {
+    _vm.setOutputHistoryLimit(val);
+    _historyCtrl.text = val.toString();
+  }
+
+  Widget _buildStepperField({
+    required String label,
+    required String helperText,
+    required TextEditingController controller,
+    required int value,
+    required int min,
+    required int max,
+    required int step,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: controller,
+                decoration: InputDecoration(
+                  hintText: value.toString(),
+                  helperText: helperText,
+                  border: const OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onFieldSubmitted: (v) {
+                  final val = int.tryParse(v);
+                  if (val != null && val >= min && val <= max) {
+                    onChanged(val);
+                  } else {
+                    controller.text = value.toString();
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 4),
+            Column(
+              children: [
+                SizedBox(
+                  width: 32,
+                  height: 28,
+                  child: IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                    onPressed: value < max
+                        ? () => onChanged(value + step)
+                        : null,
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+                SizedBox(
+                  width: 32,
+                  height: 28,
+                  child: IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                    onPressed: value > min
+                        ? () => onChanged(value - step)
+                        : null,
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
@@ -67,28 +131,26 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextFormField(
+          _buildStepperField(
+            label: 'Output refresh (ms)',
+            helperText: 'Lower = smoother, higher = less CPU',
             controller: _refreshCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Output refresh (ms)',
-              helperText: 'Lower = smoother, higher = less CPU',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            onFieldSubmitted: _saveRefreshMs,
+            value: _vm.outputRefreshMs,
+            min: 100,
+            max: 5000,
+            step: 100,
+            onChanged: _applyRefreshMs,
           ),
           const SizedBox(height: 16),
-          TextFormField(
+          _buildStepperField(
+            label: 'History limit',
+            helperText: 'Max lines per process',
             controller: _historyCtrl,
-            decoration: const InputDecoration(
-              labelText: 'History limit',
-              helperText: 'Max lines per process',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            onFieldSubmitted: _saveHistoryLimit,
+            value: _vm.outputHistoryLimit,
+            min: 100,
+            max: 100000,
+            step: 500,
+            onChanged: _applyHistoryLimit,
           ),
           const SizedBox(height: 8),
           SwitchListTile(
