@@ -166,7 +166,7 @@ class ProcessManager {
         return;
       }
 
-      final executable = args.first;
+      var executable = args.first;
       final arguments =
           args.length > 1 ? args.sublist(1) : <String>[];
 
@@ -198,6 +198,25 @@ class ProcessManager {
       String? workingDirectory;
       if (procConfig.cwd != null && procConfig.cwd!.isNotEmpty) {
         workingDirectory = procConfig.cwd;
+      }
+
+      // Resolve relative executable paths against workingDirectory.
+      // Dart's Process.start does NOT resolve the executable relative to
+      // workingDirectory — it uses the Flutter process's own CWD.
+      if (workingDirectory != null && !p.isAbsolute(executable)) {
+        if (executable.contains('/') || executable.contains('\\')) {
+          // Relative path with separators (e.g. ".\\python_embeded\\python.exe")
+          executable =
+              p.canonicalize(p.join(workingDirectory, executable));
+        } else {
+          // Bare name (e.g. "NapCatWinBootMain.exe"): check if it
+          // exists in workingDirectory. If so, resolve to absolute;
+          // otherwise leave as-is for PATH lookup (e.g. "bun", "python").
+          final candidate = p.join(workingDirectory, executable);
+          if (File(candidate).existsSync()) {
+            executable = p.canonicalize(candidate);
+          }
+        }
       }
 
       _log('Starting $name: $executable ${arguments.join(' ')}');
@@ -340,6 +359,14 @@ class ProcessManager {
       if (proc.autostart && !runningNames.contains(proc.name)) {
         await start(proc.name);
       }
+    }
+  }
+
+  /// Clears the output buffer for [name], discarding any un-flushed lines.
+  void clearOutput(String name) {
+    final proc = _procs[name];
+    if (proc != null) {
+      proc.outputBuffer?.clear();
     }
   }
 

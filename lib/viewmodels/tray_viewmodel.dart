@@ -43,14 +43,16 @@ class TrayViewModel extends ChangeNotifier {
   TrayColor get color => _color;
 
   /// Returns the icon asset path for the current colour.
+  /// Uses .ico format — required by tray_manager on Windows
+  /// (Win32 LoadImage with IMAGE_ICON does not support PNG).
   String get iconPath {
     switch (_color) {
       case TrayColor.green:
-        return 'assets/icons/icon-green.png';
+        return 'assets/icons/icon-green.ico';
       case TrayColor.yellow:
-        return 'assets/icons/icon-yellow.png';
+        return 'assets/icons/icon-yellow.ico';
       case TrayColor.red:
-        return 'assets/icons/icon-red.png';
+        return 'assets/icons/icon-red.ico';
     }
   }
 
@@ -80,6 +82,11 @@ class TrayViewModel extends ChangeNotifier {
     }
 
     // Fixed items
+    items.add(MenuItem(
+      key: 'reload',
+      label: 'Reload Settings',
+      onClick: (_) => _configStore.reload(),
+    ));
     items.add(MenuItem(
       key: 'dashboard',
       label: 'Dashboard',

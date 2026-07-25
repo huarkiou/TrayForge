@@ -81,6 +81,18 @@ class ProcessViewModel extends ChangeNotifier {
     if (state.isTerminal) {
       _optimisticState = null;
     }
+    // Clear WebUI URL when process is no longer running.
+    if (state != ProcState.running) {
+      _webuiUrl = null;
+    }
+    notifyListeners();
+  }
+
+  /// Clears all accumulated output lines and the underlying
+  /// [ProcessManager] output buffer.
+  void clearOutput() {
+    _outputLines.clear();
+    _processManager.clearOutput(name);
     notifyListeners();
   }
 

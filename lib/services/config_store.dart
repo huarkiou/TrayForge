@@ -74,6 +74,13 @@ class ConfigStore {
     _configChangedController.add(null);
   }
 
+  /// Reloads the configuration from disk and fires [configChanged]
+  /// so all listeners refresh. Useful when config.json is replaced
+  /// externally at runtime.
+  void reload() {
+    _configChangedController.add(null);
+  }
+
   /// Validates a single [ProcessConfig].
   ///
   /// Throws [ArgumentError] if:

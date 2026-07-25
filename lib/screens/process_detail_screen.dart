@@ -133,6 +133,11 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
                 ));
               }
               children.add(IconButton(
+                icon: const Icon(Icons.delete_sweep),
+                tooltip: 'Clear output',
+                onPressed: () => _vm.clearOutput(),
+              ));
+              children.add(IconButton(
                 icon: Icon(
                   _searchVisible ? Icons.search_off : Icons.search,
                 ),
