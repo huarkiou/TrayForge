@@ -72,7 +72,6 @@ void main() {
 
     tearDown(() {
       pm.dispose();
-      configStore.dispose();
       tmpDir.deleteSync(recursive: true);
     });
 
@@ -411,8 +410,8 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        WebUiEvent? event;
-        fresh.onWebUiDetected.listen((e) => event = e);
+        Uri? detectedUrl;
+        fresh.webUiStream('test-svc').listen((url) => detectedUrl = url);
 
         await fresh.start('test-svc');
 
@@ -421,9 +420,8 @@ void main() {
 
         fresh.flushNow('test-svc');
 
-        expect(event, isNotNull);
-        expect(event!.processName, 'test-svc');
-        expect(event!.url.toString(), 'http://127.0.0.1:8080');
+        expect(detectedUrl, isNotNull);
+        expect(detectedUrl.toString(), 'http://127.0.0.1:8080');
 
         fresh.dispose();
       });
@@ -443,7 +441,7 @@ void main() {
         );
 
         var eventCount = 0;
-        fresh.onWebUiDetected.listen((_) => eventCount++);
+        fresh.webUiStream('test-svc').listen((_) => eventCount++);
 
         await fresh.start('test-svc');
 
@@ -812,7 +810,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        await fresh.settle();
+        await fresh.init();
 
         // Stale PID file should be gone.
         expect(File('${pidsDir.path}/stale.pid').existsSync(), isFalse);
@@ -841,7 +839,7 @@ void main() {
             dataDir: tmpDir.path,
           );
 
-          await fresh.settle();
+          await fresh.init();
 
           // Orphan should be killed and its PID file deleted.
           expect(mockRunner.killedPids, contains(12345));
@@ -870,7 +868,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        await fresh.settle();
+        await fresh.init();
 
         // PID file should be deleted — startTime mismatch indicates reuse.
         expect(File('${pidsDir.path}/zombie.pid').existsSync(), isFalse);
@@ -898,7 +896,7 @@ void main() {
             dataDir: tmpDir.path,
           );
 
-          await fresh.settle();
+          await fresh.init();
 
           // Orphan should have been killed.
           expect(mockRunner.killedPids, contains(42));
@@ -928,7 +926,7 @@ void main() {
             dataDir: tmpDir.path,
           );
 
-          await fresh.settle();
+          await fresh.init();
 
           // killPid should NOT have been called — startTime mismatch means
           // PID was reused, not an orphan.
@@ -968,7 +966,7 @@ void main() {
             dataDir: tmpDir.path,
           );
 
-          await fresh.settle();
+          await fresh.init();
 
           // Orphan was killed.
           expect(mockRunner.killedPids, contains(99));
@@ -1107,7 +1105,7 @@ void main() {
           dataDir: tmpDir.path,
         );
 
-        await fresh.settle();
+        await fresh.init();
 
         expect(mockRunner.starts.length, 2);
         final started = mockRunner.starts.map((s) => s.executable).toSet();
@@ -1120,7 +1118,6 @@ void main() {
 
       test('skips autostart when no config is loaded', () async {
         // Don't write any config.
-        configStore.dispose();
         final emptyDir = Directory.systemTemp.createTempSync(
           'trayforge_pm_empty_',
         );
@@ -1132,12 +1129,11 @@ void main() {
           dataDir: emptyDir.path,
         );
 
-        await fresh.settle();
+        await fresh.init();
 
         expect(mockRunner.starts.length, 0, reason: 'no config → no autostart');
 
         fresh.dispose();
-        emptyStore.dispose();
         emptyDir.deleteSync(recursive: true);
       });
     });
@@ -1154,21 +1150,23 @@ void main() {
           processRunner: mockRunner,
           dataDir: tmpDir.path,
         );
-        await fresh.settle();
+        await fresh.init();
         expect(mockRunner.starts.length, 1);
         expect(fresh.getState('keep-me'), ProcState.running);
 
         // Reload: remove 'keep-me', add 'new-svc' with autostart.
-        mockRunner.nextHandle = MockProcessHandle(pid: 801);
-        await fresh.reloadConfig(
-          AppConfig(
-            outputRefreshMs: 10,
-            outputHistoryLimit: 100,
-            processes: [
-              ProcessConfig(name: 'new-svc', cmd: 'new.exe', autostart: true),
-            ],
-          ),
+        // Save the new config to disk so _lookupConfig can find it.
+        final newConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'new-svc', cmd: 'new.exe', autostart: true),
+          ],
         );
+        writeConfig(tmpDir, newConfig);
+
+        mockRunner.nextHandle = MockProcessHandle(pid: 801);
+        await fresh.reloadConfig(newConfig);
 
         // 'keep-me' should have been stopped.
         expect(fresh.getState('keep-me'), ProcState.stopped);
@@ -1189,27 +1187,88 @@ void main() {
           processRunner: mockRunner,
           dataDir: tmpDir.path,
         );
-        await fresh.settle();
+        await fresh.init();
         expect(fresh.getState('svc1'), ProcState.running);
 
         // Reload with same config — svc1 should stay running.
         final output = <String>[];
         fresh.outputStream('svc1').listen(output.add);
 
-        mockRunner.nextHandle = MockProcessHandle(pid: 901);
-        await fresh.reloadConfig(
-          AppConfig(
-            outputRefreshMs: 10,
-            outputHistoryLimit: 100,
-            processes: [
-              ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
-            ],
-          ),
+        final sameConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
+          ],
         );
+        writeConfig(tmpDir, sameConfig);
+
+        mockRunner.nextHandle = MockProcessHandle(pid: 901);
+        await fresh.reloadConfig(sameConfig);
 
         expect(fresh.getState('svc1'), ProcState.running);
         // No second start call.
         expect(mockRunner.starts.length, 1);
+
+        fresh.dispose();
+      });
+
+      test('emits onConfigReloaded after processing', () async {
+        writeConfig(tmpDir, _testConfig(name: 'svc1', autostart: true));
+
+        mockRunner.nextHandle = MockProcessHandle(pid: 700);
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await fresh.init();
+
+        final events = <void>[];
+        final sub = fresh.onConfigReloaded.listen((_) => events.add(null));
+
+        final config = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
+          ],
+        );
+        writeConfig(tmpDir, config);
+        await fresh.reloadConfig(config);
+
+        expect(events.length, 1);
+
+        await sub.cancel();
+        fresh.dispose();
+      });
+
+      test('cleans up stale _procs entries for deleted processes', () async {
+        // Start a process so it has a _ProcsRuntime entry.
+        writeConfig(tmpDir, _testConfig(name: 'will-be-removed'));
+        mockRunner.nextHandle = MockProcessHandle(pid: 600);
+
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await fresh.start('will-be-removed');
+
+        // Verify the entry exists.
+        expect(fresh.getState('will-be-removed'), ProcState.running);
+
+        // Reload without the process.
+        final newConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [],
+        );
+        writeConfig(tmpDir, newConfig);
+        await fresh.reloadConfig(newConfig);
+
+        // The runtime entry should be cleaned up.
+        expect(fresh.getState('will-be-removed'), ProcState.stopped);
 
         fresh.dispose();
       });

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:trayforge/foundation/process_cwd.dart';
+import 'package:trayforge/foundation/process_cwd.dart' as process_cwd;
 
 /// Abstract handle to a running process.
 ///
@@ -200,7 +200,7 @@ class RealProcessRunner implements IProcessRunner {
   Future<Set<int>> findPidsByCwd(String cwd) async {
     // Import is conditional on dart:ffi availability; on platforms
     // without it the call is a no-op.
-    return findPidsByCwd(cwd);
+    return process_cwd.findPidsByCwd(cwd);
   }
 
   @override

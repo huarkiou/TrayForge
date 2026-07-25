@@ -36,6 +36,9 @@ class TrayViewModel extends ChangeNotifier {
     required this.onExit,
   }) {
     _rebuildSubscriptions();
+    _subscriptions.add(
+      _processManager.onConfigReloaded.listen((_) => onConfigChanged()),
+    );
   }
 
   // ---- Public API ----
@@ -91,7 +94,7 @@ class TrayViewModel extends ChangeNotifier {
       MenuItem(
         key: 'reload',
         label: 'Reload Settings',
-        onClick: (_) => _configStore.reload(),
+        onClick: (_) => _reloadConfig(),
       ),
     );
     items.add(
@@ -185,6 +188,14 @@ class TrayViewModel extends ChangeNotifier {
       _processManager.stop(name);
     } else {
       _processManager.start(name);
+    }
+  }
+
+  /// Reloads settings from disk and applies them (Path C from spec).
+  void _reloadConfig() {
+    final config = _configStore.load();
+    if (config != null) {
+      _processManager.reloadConfig(config);
     }
   }
 }

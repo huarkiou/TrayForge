@@ -84,7 +84,7 @@ void main() {
 
     // ---- Config changed ----
 
-    test('rebuilds when configChanged fires', () async {
+    test('rebuilds when onConfigReloaded fires', () async {
       writeConfig(
         tmpDir,
         AppConfig(
@@ -101,17 +101,16 @@ void main() {
       expect(vm.processViewModels.length, 1);
 
       // Save new config with additional process.
-      configStore2.save(
-        AppConfig(
-          processes: [
-            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
-          ],
-        ),
+      final newConfig = AppConfig(
+        processes: [
+          const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+          const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+        ],
       );
+      configStore2.save(newConfig);
 
-      // ConfigStore broadcasts asynchronously.
-      await Future.delayed(Duration.zero);
+      // Fire onConfigReloaded through ProcessManager.
+      await manager.reloadConfig(newConfig);
 
       expect(vm.processViewModels.length, 2);
       expect(vm.processViewModels[1].name, 'svc-b');
@@ -133,10 +132,11 @@ void main() {
 
       expect(vm.isEmpty, false);
 
-      configStore2.save(AppConfig(processes: []));
+      final emptyConfig = AppConfig(processes: []);
+      configStore2.save(emptyConfig);
 
-      // ConfigStore broadcasts asynchronously.
-      await Future.delayed(Duration.zero);
+      // Fire onConfigReloaded through ProcessManager.
+      await manager.reloadConfig(emptyConfig);
 
       expect(vm.isEmpty, true);
     });
@@ -220,14 +220,12 @@ void main() {
 
       final original = vm.processViewModels[0];
 
-      // Save config with same name, triggering rebuild.
-      configStore2.save(
-        AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a2.exe')],
-        ),
+      // Save config with same name, then fire onConfigReloaded.
+      final newConfig = AppConfig(
+        processes: [const ProcessConfig(name: 'svc-a', cmd: 'a2.exe')],
       );
-
-      await Future.delayed(Duration.zero);
+      configStore2.save(newConfig);
+      await manager.reloadConfig(newConfig);
 
       // The same VM instance should be reused (identity check).
       expect(vm.processViewModels.length, 1);
@@ -250,10 +248,10 @@ void main() {
 
       final original = vm.processViewModels[0];
 
-      // Save config without the process, triggering rebuild.
-      configStore2.save(AppConfig(processes: []));
-
-      await Future.delayed(Duration.zero);
+      // Save config without the process, then fire onConfigReloaded.
+      final emptyConfig = AppConfig(processes: []);
+      configStore2.save(emptyConfig);
+      await manager.reloadConfig(emptyConfig);
 
       expect(vm.processViewModels, isEmpty);
 

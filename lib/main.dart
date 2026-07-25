@@ -64,6 +64,7 @@ Future<void> main() async {
   final configCorrupted = configExists && config == null;
 
   _processManager = ProcessManager(configStore: _configStore, logger: _logger);
+  await _processManager.init();
 
   _autostart = Autostart(logger: _logger);
 
@@ -87,11 +88,6 @@ Future<void> main() async {
     onShowDashboard: _showDashboard,
     onExit: _exitApp,
   );
-
-  // Config changes should refresh the tray.
-  _configStore.configChanged.listen((_) {
-    _trayViewModel.onConfigChanged();
-  });
 
   // Tray state changes → update icon and menu.
   _trayViewModel.addListener(_onTrayStateChanged);
@@ -167,7 +163,6 @@ Future<void> _exitApp() async {
   _dashboardViewModel.dispose();
   _settingsViewModel.dispose();
   _processManager.dispose();
-  _configStore.dispose();
   await trayManager.destroy();
   await windowManager.destroy();
 

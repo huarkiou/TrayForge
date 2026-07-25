@@ -11,7 +11,7 @@ import 'package:trayforge/viewmodels/process_viewmodel.dart';
 /// ViewModel for the Dashboard window.
 ///
 /// Holds a list of [ProcessViewModel] instances, one per configured process.
-/// Rebuilds the list whenever [ConfigStore.configChanged] fires. Exposes
+/// Rebuilds the list whenever [ProcessManager.onConfigReloaded] fires. Exposes
 /// an [isEmpty] flag so the UI can show a welcome screen when no processes
 /// are configured.
 class DashboardViewModel extends ChangeNotifier {
@@ -33,7 +33,7 @@ class DashboardViewModel extends ChangeNotifier {
        _processManager = processManager,
        _configCorrupted = configCorrupted {
     _rebuild();
-    _configSub = configStore.configChanged.listen((_) => _rebuild());
+    _configSub = processManager.onConfigReloaded.listen((_) => _rebuild());
   }
 
   /// All process view models, in config order.

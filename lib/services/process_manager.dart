@@ -11,51 +11,29 @@ import 'package:trayforge/foundation/shlex.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_runner.dart';
 
-/// Event raised when a Web UI URL is detected in process output.
-class WebUiEvent {
-  final String processName;
-  final Uri url;
-
-  const WebUiEvent(this.processName, this.url);
-}
-
 // ---------------------------------------------------------------------------
 // _ProcessRuntime
 // ---------------------------------------------------------------------------
 
 /// Per-process mutable state bundled into a single object.
 ///
-/// Previously 9 parallel `Map<String, ...>` fields on [ProcessManager]; now
-/// one `Map<String, _ProcessRuntime>`. [dispose] closes controllers, cancels
-/// timers/subscriptions, and [flushBuffer] drains pending output lines.
+/// [dispose] closes controllers, cancels timers/subscriptions.
+/// The output pipeline (buffer, flush timer, ANSI strip, WebUI detection)
+/// lives in [BufferedOutputPipeline] instead of being scattered here.
 class _ProcessRuntime {
   ProcState state = ProcState.stopped;
   IProcessHandle? handle;
   bool manualStop = false;
   _RestartState? restart;
-  StreamController<String>? outputController;
-  List<String>? outputBuffer;
-  Timer? flushTimer;
+  BufferedOutputPipeline? pipeline;
   StreamSubscription<void>? outputSubscription;
   StreamController<ProcState>? stateController;
-
-  /// Flush buffered output lines to the output stream.
-  void flushBuffer() {
-    final buffer = outputBuffer;
-    final controller = outputController;
-    if (buffer == null || controller == null || buffer.isEmpty) return;
-    for (final line in buffer) {
-      controller.add(line);
-    }
-    buffer.clear();
-  }
 
   /// Release all resources held by this runtime entry.
   void dispose() {
     restart?.cooldownTimer?.cancel();
-    flushTimer?.cancel();
+    pipeline?.dispose();
     outputSubscription?.cancel();
-    outputController?.close();
     stateController?.close();
   }
 }
@@ -89,11 +67,12 @@ class ProcessManager {
   /// Per-process mutable state, bundled into a single map.
   final Map<String, _ProcessRuntime> _procs = {};
 
-  // WebUI detection broadcast
-  final StreamController<WebUiEvent> _webuiController;
+  // Config reload broadcast
+  final StreamController<void> _onConfigReloadedController =
+      StreamController<void>.broadcast(sync: true);
 
-  /// Broadcast stream of WebUI URL detections.
-  Stream<WebUiEvent> get onWebUiDetected => _webuiController.stream;
+  /// A stream that emits whenever the config is reloaded via [reloadConfig].
+  Stream<void> get onConfigReloaded => _onConfigReloadedController.stream;
 
   ProcessManager({
     required ConfigStore configStore,
@@ -105,10 +84,14 @@ class ProcessManager {
     // ignore: prefer_initializing_formals
     : _configStore = configStore,
        _processRunner = processRunner ?? RealProcessRunner(),
-       _dataDir = dataDir ?? Logger.getDataDir(),
-       _webuiController = StreamController<WebUiEvent>.broadcast(sync: true) {
-    _cleanupStalePidFiles();
-    _autostartAll();
+       _dataDir = dataDir ?? Logger.getDataDir();
+
+  /// Performs startup operations: stale PID cleanup and autostart.
+  ///
+  /// Call once after construction, before any other method.
+  Future<void> init() async {
+    await _cleanupStalePidFiles();
+    await _autostartAll();
   }
 
   String get _pidsDir => p.join(_dataDir, 'pids');
@@ -119,9 +102,15 @@ class ProcessManager {
 
   /// Returns a broadcast stream of processed output lines for [name].
   Stream<String> outputStream(String name) {
-    return (_proc(name).outputController ??= StreamController<String>.broadcast(
-      sync: true,
-    )).stream;
+    return _ensurePipeline(name).output;
+  }
+
+  /// Returns a broadcast stream of WebUI URL detections for [name].
+  ///
+  /// Each process gets its own detection stream — no relay or name
+  /// filtering needed.
+  Stream<Uri> webUiStream(String name) {
+    return _ensurePipeline(name).onWebUiDetected;
   }
 
   /// Returns a broadcast stream of [ProcState] transitions for [name].
@@ -142,9 +131,7 @@ class ProcessManager {
   /// through `starting` → `running`.
   Future<void> start(String name) async {
     final proc = _proc(name);
-
-    // Ensure the output controller exists before any system message is pushed.
-    proc.outputController ??= StreamController<String>.broadcast(sync: true);
+    final pipeline = _ensurePipeline(name);
 
     final procConfig = _lookupConfig(name);
     if (procConfig == null) return;
@@ -244,23 +231,24 @@ class ProcessManager {
       // Wire output pipeline
       final config = _configStore.load()!;
       final encoding = _resolveEncoding(procConfig.encoding, name);
-      final webuiPattern = procConfig.webuiPattern;
-      final refreshMs = config.outputRefreshMs;
-      final historyLimit = config.outputHistoryLimit;
 
-      proc.outputBuffer = [];
+      pipeline.configure(
+        historyLimit: config.outputHistoryLimit,
+        refreshMs: config.outputRefreshMs,
+        webuiPattern: procConfig.webuiPattern,
+      );
 
       final merged = _mergeByteStreams(handle.stdout, handle.stderr);
       final subscription = merged
           .transform(encoding.decoder)
           .transform(const LineSplitter())
           .listen(
-            (line) => _onOutputLine(name, line, webuiPattern, historyLimit),
-            onError: (e) => _pushSystemMessage(name, 'Output read error: $e'),
+            pipeline.addLine,
+            onError: (e) => pipeline.push('[trayforge] Output read error: $e'),
           );
       proc.outputSubscription = subscription;
 
-      _startFlushTimer(name, refreshMs);
+      pipeline.startFlushTimer();
 
       // Monitor exit
       handle.exitCode.then((exitCode) {
@@ -307,39 +295,23 @@ class ProcessManager {
   /// Configurable for testing; defaults to 60 seconds.
   final Duration cooldownDuration;
 
-  /// Completes when all fire-and-forget async work from construction
-  /// (PID cleanup, autostart) has settled.
-  ///
-  /// Exposed so tests can wait deterministically instead of relying on
-  /// [Future.delayed] guesses.
-  @visibleForTesting
-  Future<void> settle() async {
-    await _cleanupComplete.future;
-    await _autostartComplete.future;
-    // Wait for any pending fire-and-forget start() calls to finish.
-    while (_pendingCount > 0) {
-      await _allPendingComplete.future;
-    }
-  }
-
-  final Completer<void> _cleanupComplete = Completer<void>();
-  final Completer<void> _autostartComplete = Completer<void>();
-  int _pendingCount = 0;
-  Completer<void> _allPendingComplete = Completer<void>();
-
   /// Releases all resources: timers, subscriptions, controllers.
   void dispose() {
     for (final proc in _procs.values) {
       proc.dispose();
     }
-    _webuiController.close();
+    _onConfigReloadedController.close();
   }
 
   /// Hot-swaps configuration without restarting already-running processes.
   ///
   /// Starts new processes that have `autostart: true` and are not already
   /// running. Stops processes that are running but no longer present in
-  /// the new config.
+  /// the new config. Cleans up stale [_procs] entries for deleted/renamed
+  /// processes. Emits [onConfigReloaded] on completion.
+  ///
+  /// Does **not** write the config to disk — callers must [ConfigStore.save]
+  /// beforehand if persistence is desired.
   Future<void> reloadConfig(AppConfig config) async {
     // Determine which processes are currently running.
     final runningNames = _procs.entries
@@ -354,8 +326,13 @@ class ProcessManager {
       await stop(name);
     }
 
-    // Save the new config so subsequent _lookupConfig calls see it.
-    _configStore.save(config);
+    // Dispose stale _procs entries for deleted/renamed processes that
+    // are not currently running (running ones were stopped above).
+    final stale = _procs.keys.where((n) => !newNames.contains(n)).toList();
+    for (final name in stale) {
+      _procs[name]?.dispose();
+      _procs.remove(name);
+    }
 
     // Start new autostart processes that aren't already running.
     for (final proc in config.processes) {
@@ -363,14 +340,13 @@ class ProcessManager {
         await start(proc.name);
       }
     }
+
+    _onConfigReloadedController.add(null);
   }
 
   /// Clears the output buffer for [name], discarding any un-flushed lines.
   void clearOutput(String name) {
-    final proc = _procs[name];
-    if (proc != null) {
-      proc.outputBuffer?.clear();
-    }
+    _procs[name]?.pipeline?.clear();
   }
 
   /// Immediately flushes buffered output for [name].
@@ -379,7 +355,7 @@ class ProcessManager {
   /// flush timer.
   @visibleForTesting
   void flushNow(String name) {
-    _proc(name).flushBuffer();
+    _procs[name]?.pipeline?.flushNow();
   }
 
   // ---------------------------------------------------------------------------
@@ -472,39 +448,25 @@ class ProcessManager {
     return _procs.putIfAbsent(name, () => _ProcessRuntime());
   }
 
-  /// Starts all processes with `autostart: true` in the current config.
-  void _autostartAll() {
-    final config = _configStore.load();
-    if (config == null) {
-      if (!_autostartComplete.isCompleted) _autostartComplete.complete();
-      return;
-    }
-
-    for (final proc in config.processes) {
-      if (proc.autostart) {
-        // Fire-and-forget: autostart processes are launched in the
-        // background so construction doesn't block.
-        _trackPending(start(proc.name));
-      }
-    }
-
-    // Signal that autostart enumeration is done (individual start()
-    // calls are still in flight). Tests call settle() to wait for them.
-    if (!_autostartComplete.isCompleted) {
-      _autostartComplete.complete();
-    }
+  /// Returns the [BufferedOutputPipeline] for [name], creating one if absent.
+  BufferedOutputPipeline _ensurePipeline(String name) {
+    final proc = _proc(name);
+    return proc.pipeline ??= BufferedOutputPipeline();
   }
 
-  /// Wraps a [Future] so [settle] can wait for it.
-  void _trackPending(Future<void> future) {
-    _pendingCount++;
-    _allPendingComplete = Completer<void>();
-    future.whenComplete(() {
-      _pendingCount--;
-      if (_pendingCount == 0 && !_allPendingComplete.isCompleted) {
-        _allPendingComplete.complete();
+  /// Starts all processes with `autostart: true` in the current config.
+  Future<void> _autostartAll() async {
+    final config = _configStore.load();
+    if (config == null) return;
+
+    final futures = <Future<void>>[];
+    for (final proc in config.processes) {
+      if (proc.autostart) {
+        futures.add(start(proc.name));
       }
-    });
+    }
+
+    await Future.wait(futures);
   }
 
   ProcessConfig? _lookupConfig(String name) {
@@ -526,47 +488,16 @@ class ProcessManager {
     return match;
   }
 
-  void _onOutputLine(
-    String name,
-    String line,
-    String? webuiPattern,
-    int historyLimit,
-  ) {
-    final cleaned = OutputPipeline.stripAnsi(line);
-
-    if (webuiPattern != null) {
-      final url = OutputPipeline.tryDetectWebUi(cleaned, webuiPattern);
-      if (url != null) {
-        _webuiController.add(WebUiEvent(name, url));
-      }
-    }
-
-    final buffer = _proc(name).outputBuffer!;
-    buffer.add(cleaned);
-    while (buffer.length > historyLimit) {
-      buffer.removeAt(0);
-    }
-  }
-
-  void _startFlushTimer(String name, int refreshMs) {
-    final proc = _proc(name);
-    proc.flushTimer?.cancel();
-    proc.flushTimer = Timer.periodic(Duration(milliseconds: refreshMs), (_) {
-      _proc(name).flushBuffer();
-    });
-  }
-
   void _cleanup(String name) {
     final proc = _procs[name];
     if (proc == null || proc.handle == null) return;
 
-    proc.flushTimer?.cancel();
-    proc.flushTimer = null;
+    proc.pipeline?.stopFlushTimer();
     proc.outputSubscription?.cancel();
     proc.outputSubscription = null;
 
     // Flush remaining buffered output before removing handle.
-    proc.flushBuffer();
+    proc.pipeline?.flushNow();
 
     proc.handle = null;
     _deletePidFile(name);
@@ -580,7 +511,7 @@ class ProcessManager {
 
   void _pushSystemMessage(String name, String message) {
     final line = '[trayforge] $message';
-    _proc(name).outputController?.add(line);
+    _procs[name]?.pipeline?.push(line);
   }
 
   Encoding _resolveEncoding(String? encodingName, String name) {
@@ -755,17 +686,15 @@ class ProcessManager {
   // Private: PID file
   // ---------------------------------------------------------------------------
 
-  /// Scans the `pids/` directory on construction and removes stale PID files.
+  /// Scans the `pids/` directory and removes stale PID files.
   ///
   /// For each `.pid` file, checks if the process is still alive and whether
   /// its start time matches the recorded value. Stale files (process not
   /// running or PID reused by a different process) are deleted.
-  void _cleanupStalePidFiles() {
+  /// Orphaned processes from previous sessions are killed.
+  Future<void> _cleanupStalePidFiles() async {
     final dir = Directory(_pidsDir);
-    if (!dir.existsSync()) {
-      if (!_cleanupComplete.isCompleted) _cleanupComplete.complete();
-      return;
-    }
+    if (!dir.existsSync()) return;
 
     final files = dir
         .listSync()
@@ -773,87 +702,60 @@ class ProcessManager {
         .where((f) => f.path.endsWith('.pid'))
         .toList();
 
-    if (files.isEmpty) {
-      if (!_cleanupComplete.isCompleted) _cleanupComplete.complete();
-      return;
-    }
+    if (files.isEmpty) return;
 
-    var pending = files.length;
-    void checkDone() {
-      pending--;
-      if (pending == 0 && !_cleanupComplete.isCompleted) {
-        _cleanupComplete.complete();
+    await Future.wait(files.map(_cleanupOnePidFile));
+  }
+
+  Future<void> _cleanupOnePidFile(File file) async {
+    try {
+      final content = file.readAsStringSync();
+      final json = jsonDecode(content) as Map<String, dynamic>;
+      final pid = json['pid'] as int?;
+      final recordedStart = json['startTime'] as String?;
+      if (pid == null) {
+        file.deleteSync();
+        return;
       }
-    }
 
-    for (final file in files) {
-      try {
-        final content = file.readAsStringSync();
-        final json = jsonDecode(content) as Map<String, dynamic>;
-        final pid = json['pid'] as int?;
-        final recordedStart = json['startTime'] as String?;
-        if (pid == null) {
-          file.deleteSync();
-          checkDone();
-          continue;
+      final alive = await _processRunner.isPidAlive(pid);
+      if (!alive) {
+        try {
+          if (file.existsSync()) file.deleteSync();
+        } catch (_) {}
+        return;
+      }
+
+      if (recordedStart != null) {
+        final actualStart = await _processRunner.getProcessStartTime(pid);
+        if (actualStart == null) return; // can't verify, keep conservatively
+
+        final recorded = DateTime.tryParse(recordedStart);
+        if (recorded == null ||
+            actualStart.difference(recorded).inSeconds.abs() > 2) {
+          // Start time mismatch — PID was reused by a different process.
+          try {
+            if (file.existsSync()) file.deleteSync();
+          } catch (_) {}
+          return;
         }
 
-        // Fire-and-forget: check if the PID is alive and verify start time.
-        _processRunner.isPidAlive(pid).then((alive) {
-          if (!alive) {
-            // Process not running — PID file is stale.
-            try {
-              if (file.existsSync()) file.deleteSync();
-            } catch (_) {}
-            checkDone();
-            return;
-          }
-
-          // Process is alive — verify start time to guard against PID reuse.
-          if (recordedStart != null) {
-            _processRunner.getProcessStartTime(pid).then((actualStart) {
-              if (actualStart == null) {
-                // Can't verify — keep the file conservatively.
-                checkDone();
-                return;
-              }
-              final recorded = DateTime.tryParse(recordedStart);
-              if (recorded == null ||
-                  actualStart.difference(recorded).inSeconds.abs() > 2) {
-                // Start time mismatch — PID was reused by a different
-                // process. Delete the stale file.
-                try {
-                  if (file.existsSync()) file.deleteSync();
-                } catch (_) {}
-                checkDone();
-                return;
-              }
-
-              // Start time match — orphan from a previous trayforge session.
-              // Kill it with the same platform dispatch stop() uses.
-              final procName = p.basenameWithoutExtension(file.path);
-              _processRunner.killPid(pid).then((_) {
-                _log(
-                  '[trayforge] Process "$procName": killed orphaned '
-                  'instance from previous session (PID $pid)',
-                );
-                try {
-                  if (file.existsSync()) file.deleteSync();
-                } catch (_) {}
-                checkDone();
-              });
-            });
-          } else {
-            checkDone();
-          }
-        });
-      } catch (_) {
-        // Corrupted PID file — clean it up.
+        // Start time match — orphan from a previous trayforge session.
+        final procName = p.basenameWithoutExtension(file.path);
+        await _processRunner.killPid(pid);
+        _log(
+          '[trayforge] Process "$procName": killed orphaned '
+          'instance from previous session (PID $pid)',
+        );
         try {
-          file.deleteSync();
+          if (file.existsSync()) file.deleteSync();
         } catch (_) {}
-        checkDone();
       }
+    } catch (_) {
+      // Corrupted PID file — clean it up.
+      try {
+        file.deleteSync();
+      } catch (_) {}
     }
   }
 

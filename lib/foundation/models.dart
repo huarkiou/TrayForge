@@ -1,8 +1,6 @@
 /// Core data types for the trayforge application.
 library;
 
-import 'package:flutter/material.dart';
-
 /// The lifecycle state of a managed process.
 enum ProcState { stopped, starting, running, stopping, crashed, cooldown }
 
@@ -14,21 +12,6 @@ extension ProcStateX on ProcState {
   /// Whether the process is in a terminal (non-transitioning) state.
   bool get isTerminal =>
       this != ProcState.starting && this != ProcState.stopping;
-
-  /// Returns a colour representing the process state.
-  Color get statusColor {
-    switch (this) {
-      case ProcState.running:
-        return Colors.green;
-      case ProcState.crashed:
-        return Colors.red;
-      case ProcState.stopped:
-      case ProcState.starting:
-      case ProcState.stopping:
-      case ProcState.cooldown:
-        return Colors.grey;
-    }
-  }
 }
 
 /// Configuration for a single managed process.

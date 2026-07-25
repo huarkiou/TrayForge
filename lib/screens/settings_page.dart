@@ -121,6 +121,13 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
+        const SizedBox(height: 4),
+        Text(
+          'Takes effect on next process start',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+        ),
       ],
     );
   }
