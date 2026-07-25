@@ -70,11 +70,11 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release
       - name: Package zip
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath trayforge-${{ inputs.version }}-windows.zip
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath trayforge-windows-${{ inputs.version }}.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: trayforge-${{ inputs.version }}-windows
-          path: trayforge-${{ inputs.version }}-windows.zip
+          name: trayforge-windows-${{ inputs.version }}
+          path: trayforge-windows-${{ inputs.version }}.zip
 
   build-linux:
     needs: validate
@@ -95,11 +95,11 @@ jobs:
           flutter config --enable-linux-desktop
           flutter build linux --release
       - name: Package tar.gz
-        run: cd build/linux/x64/release/bundle && tar czf ../../../../../trayforge-${{ inputs.version }}-linux.tar.gz .
+        run: cd build/linux/x64/release/bundle && tar czf ../../../../../trayforge-linux-${{ inputs.version }}.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
-          name: trayforge-${{ inputs.version }}-linux
-          path: trayforge-${{ inputs.version }}-linux.tar.gz
+          name: trayforge-linux-${{ inputs.version }}
+          path: trayforge-linux-${{ inputs.version }}.tar.gz
 
   release:
     needs: [changelog, build-windows, build-linux]
@@ -110,16 +110,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { name: changelog }
       - uses: actions/download-artifact@v4
-        with: { name: trayforge-${{ inputs.version }}-windows }
+        with: { name: trayforge-windows-${{ inputs.version }} }
       - uses: actions/download-artifact@v4
-        with: { name: trayforge-${{ inputs.version }}-linux }
+        with: { name: trayforge-linux-${{ inputs.version }} }
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.changelog.outputs.tag }}
           name: TrayForge ${{ needs.changelog.outputs.tag }}
           body_path: CHANGELOG.md
           files: |
-            trayforge-${{ inputs.version }}-windows.zip
-            trayforge-${{ inputs.version }}-linux.tar.gz
+            trayforge-windows-${{ inputs.version }}.zip
+            trayforge-linux-${{ inputs.version }}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
