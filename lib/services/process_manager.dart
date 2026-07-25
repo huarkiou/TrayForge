@@ -19,6 +19,62 @@ class WebUiEvent {
   const WebUiEvent(this.processName, this.url);
 }
 
+// ---------------------------------------------------------------------------
+// _ProcessRuntime
+// ---------------------------------------------------------------------------
+
+/// Per-process mutable state bundled into a single object.
+///
+/// Previously 9 parallel `Map<String, ...>` fields on [ProcessManager]; now
+/// one `Map<String, _ProcessRuntime>`. [dispose] closes controllers, cancels
+/// timers/subscriptions, and [flushBuffer] drains pending output lines.
+class _ProcessRuntime {
+  ProcState state = ProcState.stopped;
+  IProcessHandle? handle;
+  bool manualStop = false;
+  _RestartState? restart;
+  StreamController<String>? outputController;
+  List<String>? outputBuffer;
+  Timer? flushTimer;
+  StreamSubscription<void>? outputSubscription;
+  StreamController<ProcState>? stateController;
+
+  /// Flush buffered output lines to the output stream.
+  void flushBuffer() {
+    final buffer = outputBuffer;
+    final controller = outputController;
+    if (buffer == null || controller == null || buffer.isEmpty) return;
+    for (final line in buffer) {
+      controller.add(line);
+    }
+    buffer.clear();
+  }
+
+  /// Release all resources held by this runtime entry.
+  void dispose() {
+    restart?.cooldownTimer?.cancel();
+    flushTimer?.cancel();
+    outputSubscription?.cancel();
+    outputController?.close();
+    stateController?.close();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _RestartState
+// ---------------------------------------------------------------------------
+
+/// Bundles per-process crash-restart state that always travels together.
+class _RestartState {
+  DateTime? lastRestartTime;
+  int count = 0;
+  Timer? cooldownTimer;
+}
+
+// ---------------------------------------------------------------------------
+// ProcessManager
+// ---------------------------------------------------------------------------
+
 /// Manages the lifecycle of configured processes.
 ///
 /// Provides start/stop with full-process-tree kill, merged stdout+stderr
@@ -30,22 +86,8 @@ class ProcessManager {
   final String _dataDir;
   final Logger? _logger;
 
-  // Per-process mutable state
-  final Map<String, ProcState> _states = {};
-  final Map<String, IProcessHandle> _handles = {};
-  final Map<String, bool> _manualStopFlags = {};
-
-  // Crash restart state
-  final Map<String, _RestartState> _restart = {};
-
-  // Output pipeline
-  final Map<String, StreamController<String>> _outputControllers = {};
-  final Map<String, List<String>> _outputBuffers = {};
-  final Map<String, Timer> _flushTimers = {};
-  final Map<String, StreamSubscription<void>> _outputSubscriptions = {};
-
-  // State-change callbacks
-  final Map<String, StreamController<ProcState>> _stateControllers = {};
+  /// Per-process mutable state, bundled into a single map.
+  final Map<String, _ProcessRuntime> _procs = {};
 
   // WebUI detection broadcast
   final StreamController<WebUiEvent> _webuiController;
@@ -77,21 +119,20 @@ class ProcessManager {
 
   /// Returns a broadcast stream of processed output lines for [name].
   Stream<String> outputStream(String name) {
-    return _outputControllers
-        .putIfAbsent(name, () => StreamController<String>.broadcast(sync: true))
+    return (_proc(name).outputController ??=
+            StreamController<String>.broadcast(sync: true))
         .stream;
   }
 
   /// Returns a broadcast stream of [ProcState] transitions for [name].
   Stream<ProcState> stateStream(String name) {
-    return _stateControllers
-        .putIfAbsent(name, () => StreamController<ProcState>.broadcast(sync: true))
+    return (_proc(name).stateController ??=
+            StreamController<ProcState>.broadcast(sync: true))
         .stream;
   }
 
   /// Returns the current [ProcState] for [name], or [ProcState.stopped].
-  ProcState getState(String name) =>
-      _states[name] ?? ProcState.stopped;
+  ProcState getState(String name) => _proc(name).state;
 
   /// Starts the process named [name] using its current [ProcessConfig].
   ///
@@ -100,17 +141,17 @@ class ProcessManager {
   /// up the output pipeline, writes a PID file, and transitions state
   /// through `starting` → `running`.
   Future<void> start(String name) async {
+    final proc = _proc(name);
+
     // Ensure the output controller exists before any system message is pushed.
-    _outputControllers.putIfAbsent(
-        name, () => StreamController<String>.broadcast(sync: true));
+    proc.outputController ??= StreamController<String>.broadcast(sync: true);
 
     final procConfig = _lookupConfig(name);
     if (procConfig == null) return;
 
     // Singleton guard
-    final current = _states[name] ?? ProcState.stopped;
     if (procConfig.singleton &&
-        (current == ProcState.running || current == ProcState.starting)) {
+        (proc.state == ProcState.running || proc.state == ProcState.starting)) {
       _pushSystemMessage(name, 'Process is already running (singleton)');
       return;
     }
@@ -169,8 +210,8 @@ class ProcessManager {
         runInShell: false,
       );
 
-      _handles[name] = handle;
-      _manualStopFlags[name] = false;
+      proc.handle = handle;
+      proc.manualStop = false;
 
       _writePidFile(name, handle.pid);
 
@@ -184,7 +225,7 @@ class ProcessManager {
       final refreshMs = config.outputRefreshMs;
       final historyLimit = config.outputHistoryLimit;
 
-      _outputBuffers[name] = [];
+      proc.outputBuffer = [];
 
       final merged = _mergeByteStreams(handle.stdout, handle.stderr);
       final subscription = merged
@@ -195,14 +236,14 @@ class ProcessManager {
         onError: (e) =>
             _pushSystemMessage(name, 'Output read error: $e'),
       );
-      _outputSubscriptions[name] = subscription;
+      proc.outputSubscription = subscription;
 
       _startFlushTimer(name, refreshMs);
 
       // Monitor exit
       handle.exitCode.then((exitCode) {
-        final wasManual = _manualStopFlags[name] == true;
-        _manualStopFlags.remove(name);
+        final wasManual = proc.manualStop;
+        proc.manualStop = false;
         if (!wasManual) {
           _onUnexpectedExit(name, procConfig, exitCode);
         }
@@ -220,19 +261,19 @@ class ProcessManager {
   /// `pkill -P <pid>` followed by `SIGKILL` on Linux.
   /// Cleans up the PID file and transitions: `running` → `stopping` → `stopped`.
   Future<void> stop(String name) async {
-    final handle = _handles[name];
-    if (handle == null) return;
+    final proc = _procs[name];
+    if (proc == null || proc.handle == null) return;
 
     _setState(name, ProcState.stopping);
-    _manualStopFlags[name] = true;
-    final rs = _restart[name];
+    proc.manualStop = true;
+    final rs = proc.restart;
     if (rs != null) {
       rs.cooldownTimer?.cancel();
-      _restart.remove(name);
+      proc.restart = null;
     }
     _pushSystemMessage(name, 'Process stopping...');
 
-    await _processRunner.killPid(handle.pid);
+    await _processRunner.killPid(proc.handle!.pid);
 
     _cleanup(name);
     _setState(name, ProcState.stopped);
@@ -266,20 +307,8 @@ class ProcessManager {
 
   /// Releases all resources: timers, subscriptions, controllers.
   void dispose() {
-    for (final rs in _restart.values) {
-      rs.cooldownTimer?.cancel();
-    }
-    for (final t in _flushTimers.values) {
-      t.cancel();
-    }
-    for (final s in _outputSubscriptions.values) {
-      s.cancel();
-    }
-    for (final c in _outputControllers.values) {
-      c.close();
-    }
-    for (final c in _stateControllers.values) {
-      c.close();
+    for (final proc in _procs.values) {
+      proc.dispose();
     }
     _webuiController.close();
   }
@@ -291,8 +320,8 @@ class ProcessManager {
   /// the new config.
   Future<void> reloadConfig(AppConfig config) async {
     // Determine which processes are currently running.
-    final runningNames = _states.entries
-        .where((e) => e.value == ProcState.running)
+    final runningNames = _procs.entries
+        .where((e) => e.value.state == ProcState.running)
         .map((e) => e.key)
         .toSet();
 
@@ -320,7 +349,7 @@ class ProcessManager {
   /// flush timer.
   @visibleForTesting
   void flushNow(String name) {
-    _flushBuffer(name);
+    _proc(name).flushBuffer();
   }
 
   // ---------------------------------------------------------------------------
@@ -337,14 +366,17 @@ class ProcessManager {
       return;
     }
 
-    final rs = _restart.putIfAbsent(name, () => _RestartState());
+    final proc = _proc(name);
+    proc.restart ??= _RestartState();
+    final rs = proc.restart!;
+
     rs.count++;
 
     if (rs.count > maxRestarts) {
       _setState(name, ProcState.crashed);
       _pushSystemMessage(
           name, '$name: max restarts ($maxRestarts) reached, giving up');
-      _restart.remove(name);
+      proc.restart = null;
       return;
     }
 
@@ -382,7 +414,8 @@ class ProcessManager {
       String name, ProcessConfig procConfig, Duration delay, _RestartState rs) {
     rs.cooldownTimer?.cancel();
     rs.cooldownTimer = Timer(delay, () {
-      _restart.remove(name);
+      final proc = _procs[name];
+      if (proc != null) proc.restart = null;
       _pushSystemMessage(name, 'Cooldown elapsed, retrying...');
       _doRestart(name, procConfig, procConfig.maxRestarts ?? 0, rs);
     });
@@ -391,6 +424,11 @@ class ProcessManager {
   // ---------------------------------------------------------------------------
   // Private: helpers
   // ---------------------------------------------------------------------------
+
+  /// Returns the [_ProcessRuntime] for [name], creating one if absent.
+  _ProcessRuntime _proc(String name) {
+    return _procs.putIfAbsent(name, () => _ProcessRuntime());
+  }
 
   /// Starts all processes with `autostart: true` in the current config.
   void _autostartAll() {
@@ -460,7 +498,7 @@ class ProcessManager {
       }
     }
 
-    final buffer = _outputBuffers[name]!;
+    final buffer = _proc(name).outputBuffer!;
     buffer.add(cleaned);
     while (buffer.length > historyLimit) {
       buffer.removeAt(0);
@@ -468,49 +506,39 @@ class ProcessManager {
   }
 
   void _startFlushTimer(String name, int refreshMs) {
-    _flushTimers[name]?.cancel();
-    _flushTimers[name] =
+    final proc = _proc(name);
+    proc.flushTimer?.cancel();
+    proc.flushTimer =
         Timer.periodic(Duration(milliseconds: refreshMs), (_) {
-      _flushBuffer(name);
+      _proc(name).flushBuffer();
     });
   }
 
-  void _flushBuffer(String name) {
-    final buffer = _outputBuffers[name];
-    final controller = _outputControllers[name];
-    if (buffer == null || controller == null || buffer.isEmpty) return;
-
-    for (final line in buffer) {
-      controller.add(line);
-    }
-    buffer.clear();
-  }
-
   void _cleanup(String name) {
-    // Already cleaned up (e.g. stop() triggered cleanup before the
-    // exitCode future fired).
-    if (!_handles.containsKey(name)) return;
+    final proc = _procs[name];
+    if (proc == null || proc.handle == null) return;
 
-    _flushTimers[name]?.cancel();
-    _flushTimers.remove(name);
-    _outputSubscriptions[name]?.cancel();
-    _outputSubscriptions.remove(name);
+    proc.flushTimer?.cancel();
+    proc.flushTimer = null;
+    proc.outputSubscription?.cancel();
+    proc.outputSubscription = null;
 
-    // Flush remaining buffered output before removing.
-    _flushBuffer(name);
+    // Flush remaining buffered output before removing handle.
+    proc.flushBuffer();
 
-    _handles.remove(name);
+    proc.handle = null;
     _deletePidFile(name);
   }
 
   void _setState(String name, ProcState state) {
-    _states[name] = state;
-    _stateControllers[name]?.add(state);
+    final proc = _proc(name);
+    proc.state = state;
+    proc.stateController?.add(state);
   }
 
   void _pushSystemMessage(String name, String message) {
     final line = '[TrayForge] $message';
-    _outputControllers[name]?.add(line);
+    _proc(name).outputController?.add(line);
   }
 
   Encoding _resolveEncoding(String? encodingName, String name) {
@@ -736,11 +764,4 @@ class ProcessManager {
   void _log(String message) {
     _logger?.log(message);
   }
-}
-
-/// Bundles per-process crash-restart state that always travels together.
-class _RestartState {
-  DateTime? lastRestartTime;
-  int count = 0;
-  Timer? cooldownTimer;
 }
