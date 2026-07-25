@@ -62,8 +62,11 @@ flutter:
 
   assets:
     - assets/icons/icon-green.png
+    - assets/icons/icon-green.ico
     - assets/icons/icon-yellow.png
+    - assets/icons/icon-yellow.ico
     - assets/icons/icon-red.png
+    - assets/icons/icon-red.ico
     - assets/icon.ico
 
   # An image asset can refer to one or more resolution-specific "variants", see

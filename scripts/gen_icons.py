@@ -9,6 +9,8 @@ ICON_SIZE = 64
 _STROKE = 6
 _GLOW = 2
 OUTPUT_DIR = "assets/icons"
+# Windows tray icons need .ico format; include common system sizes.
+ICO_SIZES = [(16, 16), (32, 32), (48, 48), (64, 64)]
 
 
 def make_icon(color: tuple[int, int, int]) -> Image.Image:
@@ -54,19 +56,21 @@ YELLOW = (255, 193, 7)
 RED = (244, 67, 54)
 
 
+def save_icon(img: Image.Image, name: str) -> None:
+    """Save icon as both PNG (for preview) and ICO (for Windows tray)."""
+    img.save(f"{OUTPUT_DIR}/{name}.png", format="PNG")
+    img.save(f"{OUTPUT_DIR}/{name}.ico", format="ICO", sizes=ICO_SIZES)
+    print(f"Saved {name}.png + {name}.ico")
+
+
 def main():
     import os
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    make_icon(GREEN).save(f"{OUTPUT_DIR}/icon-green.png", format="PNG")
-    print("Saved icon-green.png")
-
-    make_icon(YELLOW).save(f"{OUTPUT_DIR}/icon-yellow.png", format="PNG")
-    print("Saved icon-yellow.png")
-
-    make_icon(RED).save(f"{OUTPUT_DIR}/icon-red.png", format="PNG")
-    print("Saved icon-red.png")
+    save_icon(make_icon(GREEN), "icon-green")
+    save_icon(make_icon(YELLOW), "icon-yellow")
+    save_icon(make_icon(RED), "icon-red")
 
 
 if __name__ == "__main__":

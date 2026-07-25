@@ -22,8 +22,8 @@ class Logger {
   ///
   /// Checks the [TRAYFORGE_DATA_DIR] environment variable first,
   /// then falls back to platform-specific defaults:
-  /// - Windows: `%LOCALAPPDATA%/TrayForge`
-  /// - Linux: `$XDG_DATA_HOME/TrayForge` or `~/.local/share/TrayForge`
+  /// - Windows: `%LOCALAPPDATA%/TrayForgeFlutter`
+  /// - Linux: `$XDG_DATA_HOME/TrayForgeFlutter` or `~/.local/share/TrayForgeFlutter`
   static String getDataDir() {
     final envDir = Platform.environment['TRAYFORGE_DATA_DIR'];
     if (envDir != null && envDir.isNotEmpty) {
@@ -33,12 +33,12 @@ class Logger {
     if (Platform.isWindows) {
       final localAppData = Platform.environment['LOCALAPPDATA'];
       if (localAppData != null && localAppData.isNotEmpty) {
-        return p.join(localAppData, 'TrayForge');
+        return p.join(localAppData, 'TrayForgeFlutter');
       }
       // Fallback: use USERPROFILE
       final userProfile = Platform.environment['USERPROFILE'];
       if (userProfile != null && userProfile.isNotEmpty) {
-        return p.join(userProfile, 'AppData', 'Local', 'TrayForge');
+        return p.join(userProfile, 'AppData', 'Local', 'TrayForgeFlutter');
       }
       return p.join(Directory.current.path, 'data');
     }
@@ -46,12 +46,12 @@ class Logger {
     // Linux / macOS
     final xdgDataHome = Platform.environment['XDG_DATA_HOME'];
     if (xdgDataHome != null && xdgDataHome.isNotEmpty) {
-      return p.join(xdgDataHome, 'TrayForge');
+        return p.join(xdgDataHome, 'TrayForgeFlutter');
     }
 
     final home = Platform.environment['HOME'];
     if (home != null && home.isNotEmpty) {
-      return p.join(home, '.local', 'share', 'TrayForge');
+      return p.join(home, '.local', 'share', 'TrayForgeFlutter');
     }
 
     return p.join(Directory.current.path, 'data');
