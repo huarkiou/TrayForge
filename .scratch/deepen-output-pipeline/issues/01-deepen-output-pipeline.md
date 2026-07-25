@@ -4,14 +4,14 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `BufferedOutputPipeline` class in `foundation/output_pipeline.dart` with full interface (output stream, WebUI stream, addLine, push, flush control, clear, dispose)
-- [ ] Unit tests for `BufferedOutputPipeline`: ANSI strip, WebUI detection, buffer trimming, flush timer, clear, push bypasses buffer
-- [ ] `_ProcessRuntime` simplified: three fields + one method → one `pipeline` field
-- [ ] `outputStream`, `clearOutput`, `flushNow` delegate to pipeline
-- [ ] `start()`: create pipeline before `_lookupConfig`, configure with fresh config, wire process output to pipeline.addLine
-- [ ] Remove `_onOutputLine`, `_startFlushTimer`, `_webuiController`, `WebUiEvent` class
-- [ ] New `webUiStream(String name)` on ProcessManager
-- [ ] ProcessViewModel subscribes to `webUiStream(name)` instead of `onWebUiDetected`; no name filtering
-- [ ] All 223 tests pass
+- [x] `BufferedOutputPipeline` class in `foundation/output_pipeline.dart` with full interface (output stream, WebUI stream, addLine, push, flush control, clear, dispose)
+- [x] Unit tests for `BufferedOutputPipeline`: ANSI strip, WebUI detection, buffer trimming, flush timer, clear, push bypasses buffer
+- [x] `_ProcessRuntime` simplified: three fields + one method → one `pipeline` field
+- [x] `outputStream`, `clearOutput`, `flushNow` delegate to pipeline
+- [x] `start()`: create pipeline before `_lookupConfig`, configure with fresh config, wire process output to pipeline.addLine
+- [x] Remove `_onOutputLine`, `_startFlushTimer`, `_webuiController`, `WebUiEvent` class
+- [x] New `webUiStream(String name)` on ProcessManager
+- [x] ProcessViewModel subscribes to `webUiStream(name)` instead of `onWebUiDetected`; no name filtering
+- [x] All 234 tests pass

@@ -59,6 +59,9 @@ class BufferedOutputPipeline {
   void configure({int? historyLimit, int? refreshMs, String? webuiPattern}) {
     if (historyLimit != null) _historyLimit = historyLimit;
     if (refreshMs != null) _refreshMs = refreshMs;
+    // Set unconditionally: null is a valid value meaning "disabled", and
+    // callers (e.g. config reload) may need to transition from a pattern
+    // back to null.
     _webuiPattern = webuiPattern;
   }
 
