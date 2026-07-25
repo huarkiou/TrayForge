@@ -55,7 +55,9 @@ class ProcessManager {
     IProcessRunner? processRunner,
     String? dataDir,
     this._logger,
-  })  : _configStore = configStore,
+  })
+      // ignore: prefer_initializing_formals
+      : _configStore = configStore,
         _processRunner = processRunner ?? RealProcessRunner(),
         _dataDir = dataDir ?? Logger.getDataDir(),
         _webuiController = StreamController<WebUiEvent>.broadcast(sync: true);
