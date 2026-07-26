@@ -27,6 +27,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
   bool _initialScrollDone = false;
   bool _searchVisible = false;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   String _searchText = '';
 
   ProcessViewModel get _vm => widget.viewModel;
@@ -46,6 +47,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
     _scrollController.dispose();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -87,6 +89,10 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
       _searchVisible = !_searchVisible;
       if (!_searchVisible) {
         _searchController.clear();
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _searchFocusNode.requestFocus();
+        });
       }
     });
   }
@@ -170,7 +176,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
                 ),
                 child: TextField(
                   controller: _searchController,
-                  autofocus: true,
+                  focusNode: _searchFocusNode,
                   decoration: InputDecoration(
                     hintText: 'Filter output...',
                     prefixIcon: const Icon(Icons.search),
