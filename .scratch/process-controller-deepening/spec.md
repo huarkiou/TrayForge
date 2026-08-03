@@ -128,13 +128,17 @@ before.
   stopped) — this is the orphan fix.
 - **Encoding resolution** stays inside the launch sequence; the lenient
   decoder behaviour is unchanged.
-- **Landing order (incremental):**
-  1. Extract `ProcessController` + facade delegation (behavioural
-     equivalent) with the three flags (removed / pending-stop /
-     closed-guards) and new tests; existing tests stay green.
-  2. Add `manager.toggle(name)`; switch the two viewmodel call sites.
-  3. `reloadConfig` → `applyRemoval` for all states; orphan-fix tests.
-  4. Prune redundant manager-level tests once controller coverage lands.
+- **Landing order (incremental; broken into tickets 01–06 in the issue
+  tracker):**
+  1. Extract `ProcessController` + facade delegation — purely behavioural,
+     lazy creation preserved, existing tests stay green.
+  2. pending-stop + closed-guards (stop during `starting` honoured; safe
+     dispose).
+  3. `manager.toggle(name)`; switch the two viewmodel call sites.
+  4. Diff-based materialization (controllers per configured Process;
+     inert streams + `stopped` for unknown names).
+  5. `reloadConfig` → `applyRemoval` for all states; orphan-fix tests.
+  6. Prune redundant manager-level tests once coverage lands.
 
 ## Testing Decisions
 
