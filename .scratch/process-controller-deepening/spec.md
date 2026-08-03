@@ -81,10 +81,15 @@ before.
   deleteBeforeStart, lenient decode), kill-tree stop, crash restart +
   cooldown, pid file, output wiring, and its own streams (`output`,
   `webUi`, `state`).
-- **Config is a parameter, never read from disk.** `start(config)` and
-  `toggle(config)` receive the resolved `ProcessConfig` from the
-  coordinator. The controller holds no `ConfigStore`; the double config
-  read in today's `start()` is gone.
+- **Config is a parameter, never read from disk.** `start(appConfig,
+  procConfig)` and `toggle(appConfig, procConfig)` receive the resolved
+  configs from the coordinator: the `AppConfig` (global pipeline limits
+  `outputHistoryLimit` / `outputRefreshMs`) and the per-process
+  `ProcessConfig` (command, env, encoding, webuiPattern, flags). The
+  controller holds no `ConfigStore`; today's double config read collapses
+  into one `load()` + one lookup, and the `!` NPE path disappears.
+  Pipeline limits stay start-time (as today — reload does not hot-apply
+  them to running pipelines).
 - **Constructor dependencies:** the process runner (injected), data dir
   (pid files), optional logger, cooldown duration (the existing test
   seam, forwarded through the facade).

@@ -24,8 +24,9 @@ per configured Process.
 
 Interface decisions (ADR-worthy, recorded here as agreed):
 
-- **Config is a parameter, never read from disk.** `start(config)` /
-  `toggle(config)` receive the resolved `ProcessConfig` from the
+- **Config is a parameter, never read from disk.** `start(appConfig,
+  procConfig)` / `toggle(appConfig, procConfig)` receive the resolved
+  `AppConfig` (global pipeline limits) and `ProcessConfig` from the
   coordinator; the controller holds no `ConfigStore`.
 - **`toggle` owns the start/stop decision** (active → stop, terminal →
   start). Viewmodels call it instead of re-deciding.
