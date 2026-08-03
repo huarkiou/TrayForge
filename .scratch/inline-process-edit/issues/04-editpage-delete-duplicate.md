@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — Dashboard card edit flow
 
-**Status:** ready-for-agent
+**Status:** done (`45734c3` — inline process edit feature)
 
 - [ ] AppBar actions in edit mode: `[Delete]` `[Duplicate]` `[Save]` (left to right). In add mode: `[Save]` only
 - [ ] Delete button: red `TextButton`. Tapping shows confirmation dialog — "Stop and delete?" if running, "Delete process?" if stopped, with a Cancel option

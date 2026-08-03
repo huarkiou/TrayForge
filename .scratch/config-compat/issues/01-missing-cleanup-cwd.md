@@ -1,6 +1,6 @@
 # 01 — Missing `cleanup_cwd` field
 
-Status: needs-triage
+Status: done (implemented in `da9659c` — `cleanup_cwd` field + `_cleanupCwd` in ProcessManager)
 
 ## Summary
 

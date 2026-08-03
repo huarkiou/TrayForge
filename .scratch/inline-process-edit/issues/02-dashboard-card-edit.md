@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Prefactors
 
-**Status:** ready-for-agent
+**Status:** done (`45734c3` — inline process edit feature)
 
 - [ ] `ProcessCard` gains an optional `onEditTap` callback parameter
 - [ ] When `onEditTap` is non-null, an `Icons.edit` compact `IconButton` with tooltip "Edit process" is rendered in the `_Header` row after the `ToggleButton`

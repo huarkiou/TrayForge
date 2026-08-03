@@ -1,6 +1,6 @@
 # 02 — Missing top-level `autostart` global switch
 
-Status: needs-triage
+Status: wontfix (aligns with trayforge-flutter/15 — registry is the autostart source of truth; no top-level global switch in config schema)
 
 ## Summary
 

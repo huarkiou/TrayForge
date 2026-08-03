@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Prefactors
 
-**Status:** ready-for-agent
+**Status:** done (`45734c3` — inline process edit feature)
 
 - [ ] `DashboardScreen._buildDashboardBody` replaces `ListView.builder` with `ReorderableListView.builder`; each item receives `key: ValueKey(vm.name)`
 - [ ] `onReorder` delegates to `SettingsViewModel.reorderItem`

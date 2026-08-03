@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done (`45734c3` — inline process edit feature)
 
 - [ ] `ProcessViewModel` gains a `_disposed` flag; `addListener` and `removeListener` return immediately when disposed; `dispose()` sets the flag then cleans up subscriptions and controllers as before
 - [ ] `DashboardViewModel._rebuild` builds a name→VM map from existing instances, reuses matches, creates new VMs for new names, and disposes only those no longer present

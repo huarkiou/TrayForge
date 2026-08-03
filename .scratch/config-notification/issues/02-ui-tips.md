@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done (running-process snackbar in ProcessEditPage: "changes will take effect on next start")
 
 - [ ] ProcessEditPage: when saving an edited process that is currently running, show snackbar "Process is running — changes will take effect on next start"
 - [ ] SettingsPage: add helper text to output refresh and history limit fields noting "Takes effect on next process start"

@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — ProcessEditPage Delete + Duplicate
 
-**Status:** ready-for-agent
+**Status:** done (`45734c3` — Dashboard add button, welcome page add, DetailPage edit pencil, force-return)
 
 - [ ] Dashboard AppBar gains `Icons.add` `IconButton` to the left of the Settings gear, tooltip "Add process". Opens `ProcessEditPage` in add mode. Visible on both dashboard and welcome screen
 - [ ] Welcome page "Add Process" button navigates to `ProcessEditPage` in add mode instead of `SettingsPage`

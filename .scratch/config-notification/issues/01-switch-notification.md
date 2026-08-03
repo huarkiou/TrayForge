@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done (`44e72eb` — notification moved to ProcessManager.onConfigReloaded; ConfigStore is pure persistence; reloadConfig stale sweep in place)
 
 - [ ] ConfigStore: remove `configChanged` stream, `_configChangedController`, `reload()`, `dispose()`; `save()` no longer broadcasts
 - [ ] ProcessManager: add `onConfigReloaded` stream; `reloadConfig()` removes internal `save()`, cleans stale `_procs` entries, emits `onConfigReloaded`; `dispose()` closes the new controller

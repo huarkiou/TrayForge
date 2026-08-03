@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 — Dashboard "+" + welcome page + DetailPage edit + force-return
 
-**Status:** ready-for-agent
+**Status:** done (`45734c3` — Settings page no longer renders the process list; `_ProcessRow` removed)
 
 - [ ] `SettingsPage` no longer renders the `ReorderableListView` of `_ProcessRow` widgets
 - [ ] The `FloatingActionButton` ("Add Process") is removed
