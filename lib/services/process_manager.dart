@@ -231,6 +231,10 @@ class ProcessManager {
       // Wire output pipeline
       final config = _configStore.load()!;
       final encoding = _resolveEncoding(procConfig.encoding, name);
+      // 宽松解码:原生库(torch/CUDA 等)在 Windows 上会直接往 stderr 写
+      // ANSI/GBK 字节,严格解码会抛 FormatException 中断输出流;非法字节
+      // 一律替换为 U+FFFD,保证输出流不断。
+      final decoder = _lenientDecoder(encoding);
 
       pipeline.configure(
         historyLimit: config.outputHistoryLimit,
@@ -240,7 +244,7 @@ class ProcessManager {
 
       final merged = _mergeByteStreams(handle.stdout, handle.stderr);
       final subscription = merged
-          .transform(encoding.decoder)
+          .transform(decoder)
           .transform(const LineSplitter())
           .listen(
             pipeline.addLine,
@@ -525,6 +529,14 @@ class ProcessManager {
       return utf8;
     }
     return encoding;
+  }
+
+  /// 宽松解码器:非法字节替换为 U+FFFD 而非抛异常,避免中断输出流。
+  Converter<List<int>, String> _lenientDecoder(Encoding encoding) {
+    if (encoding is Utf8Codec) return const Utf8Decoder(allowMalformed: true);
+    if (encoding is AsciiCodec) return const AsciiDecoder(allowInvalid: true);
+    // latin1 等单字节编码对任意字节均有映射,天然不会抛异常。
+    return encoding.decoder;
   }
 
   // ---------------------------------------------------------------------------
