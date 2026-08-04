@@ -12,6 +12,24 @@ extension ProcStateX on ProcState {
   /// Whether the process is in a terminal (non-transitioning) state.
   bool get isTerminal =>
       this != ProcState.starting && this != ProcState.stopping;
+
+  /// Short display label for the state.
+  String get label {
+    switch (this) {
+      case ProcState.stopped:
+        return 'Stopped';
+      case ProcState.starting:
+        return 'Starting';
+      case ProcState.running:
+        return 'Running';
+      case ProcState.stopping:
+        return 'Stopping';
+      case ProcState.crashed:
+        return 'Crashed';
+      case ProcState.cooldown:
+        return 'Cooldown';
+    }
+  }
 }
 
 /// The layout mode of the Dashboard process list.

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/widgets/copy_snackbar.dart';
 import 'package:trayforge/widgets/status_dot.dart';
@@ -52,13 +53,44 @@ class ProcessCard extends StatelessWidget {
   }
 }
 
-/// Header row shared by the List card and the Grid card: status dot, name,
-/// WebUI button, toggle button, edit button.
+/// Header row for the List card: status dot, name, then the shared
+/// [ProcessCardActions] (WebUI copy, toggle, edit).
 class ProcessCardHeader extends StatelessWidget {
   final ProcessViewModel viewModel;
   final VoidCallback? onEditTap;
 
   const ProcessCardHeader({super.key, required this.viewModel, this.onEditTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        StatusDot(state: viewModel.state),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            viewModel.name,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        ProcessCardActions(viewModel: viewModel, onEditTap: onEditTap),
+      ],
+    );
+  }
+}
+
+/// Action buttons shared by the List card header and the Grid card:
+/// WebUI copy (when a URL is known), start/stop toggle, edit.
+class ProcessCardActions extends StatelessWidget {
+  final ProcessViewModel viewModel;
+  final VoidCallback? onEditTap;
+
+  const ProcessCardActions({
+    super.key,
+    required this.viewModel,
+    this.onEditTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,16 +104,8 @@ class ProcessCardHeader extends StatelessWidget {
         : null;
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        StatusDot(state: viewModel.state),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            viewModel.name,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
         if (viewModel.webuiUrl != null) ...[
           IconButton(
             icon: const Icon(Icons.content_copy, size: 20),
@@ -108,8 +132,9 @@ class ProcessCardHeader extends StatelessWidget {
 
 /// A compact square card for the Dashboard Grid layout.
 ///
-/// Shows the shared [ProcessCardHeader] (status dot, name, WebUI copy,
-/// toggle, edit) with no output preview, keeping the card dense and square.
+/// Layered to fill the square tile: status dot + label on top, process
+/// name (and WebUI URL when present) in the middle, action buttons along
+/// the bottom. No output preview, keeping the card dense and square.
 class ProcessGridCard extends StatelessWidget {
   final ProcessViewModel viewModel;
   final VoidCallback onTap;
@@ -134,9 +159,55 @@ class ProcessGridCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: ProcessCardHeader(
-                viewModel: viewModel,
-                onEditTap: onEditTap,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      StatusDot(state: viewModel.state),
+                      const SizedBox(width: 6),
+                      Text(
+                        viewModel.state.label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: statusColor(viewModel.state),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Text(
+                    viewModel.name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (viewModel.webuiUrl != null)
+                    Text(
+                      viewModel.webuiUrl.toString(),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        color: Colors.grey,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  const Spacer(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ProcessCardActions(
+                        viewModel: viewModel,
+                        onEditTap: onEditTap,
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
