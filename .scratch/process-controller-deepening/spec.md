@@ -211,3 +211,36 @@ before.
   `wontfix` (aligns with `trayforge-flutter/15`).
 - The orphan fix (story 1–2) is the highest-value user-visible outcome
   of this refactor; the rest is locality and test-surface payoff.
+
+## Follow-ups for #7 (from #6 code review)
+
+Local backup of the follow-up scope appended to GitHub issue #7
+(`gh issue view 7` is the canonical copy). Two findings from the #6
+review fold into the #7 pruning pass because they affect test
+reliability:
+
+1. **Drop the `_isConfigured` disk fallback.** After #5,
+   `_configuredNames` is the single source of truth, but `_isConfigured`
+   still falls back to `ConfigStore.load()` on a miss, which
+   re-materializes `_configuredNames` and resurrects a phantom controller
+   for a removed name (`getState('removed')` then reports `stopped` via a
+   fresh controller, not the removed one). Remove the fallback so removed
+   names are truly inert — this also lets the #6 removal tests drop their
+   write-to-disk workaround. Do this first (prune-first).
+
+2. **Confirm the UI doesn't depend on removed processes emitting
+   `stopping`→`stopped`.** `applyRemoval` kills + disposes without state
+   transitions (previously removal of a running process went through
+   `stop()` and emitted them). Dashboard/tray rebuild subscriptions on
+   `onConfigReloaded`; verify nothing reads the old transition, then the
+   facade tests can assert the new behaviour.
+
+Out of scope for #7 (tracked separately if wanted): `_cancelRestart()`
+   duplication — the restart-cancel block now exists 3× (stop ×2,
+   applyRemoval); extract a private helper.
+
+Suggested #7 execution order: (1) drop the `_isConfigured` fallback and
+run the full suite; (2) record a coverage baseline (`flutter test
+--coverage`) before pruning, to compare against the "No coverage
+regression" acceptance; (3) prune restart/cooldown, toggle, and removal
+cases now duplicated by the newer facade-level tests.
