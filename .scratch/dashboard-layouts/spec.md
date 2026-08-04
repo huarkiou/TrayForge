@@ -84,11 +84,13 @@ handle is removed from the List layout.
   only when processes exist and a settings viewmodel is present (same
   condition as the Add/Settings buttons); no duplicate entry in the
   Settings page.
-- **List layout**: unchanged rendering; the `ReorderableListView` switches
-  to built-in long-press drag handles (`buildDefaultDragHandles: true`) and
-  the per-card drag handle widget is removed from `ProcessCard` (the
-  `dragHandleIndex` parameter, the `ReorderableDragStartListener`, and the
-  handle icon go away).
+- **List layout**: unchanged rendering; the `ReorderableListView` wraps
+  each card in a long-press drag listener
+  (`ReorderableDelayedDragStartListener`, `buildDefaultDragHandles: false`)
+  so any point on a card can start a reorder drag, and the per-card drag
+  handle widget is removed from `ProcessCard` (the `dragHandleIndex`
+  parameter, the `ReorderableDragStartListener`, and the handle icon go
+  away).
 - **Grid layout**: the framework ships no reorderable grid (verified
   against Flutter 3.44.8 — only `ReorderableListView` exists), so the grid
   uses the third-party package **`flutter_reorderable_grid_view` 5.7.0**
