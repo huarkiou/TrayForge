@@ -114,9 +114,10 @@ handle is removed from the List layout.
   `reorderItem` expects). The Dashboard passes them through unchanged;
   if the resolved package version's semantics ever differ, indices are
   adapted at the Dashboard boundary so the settings seam stays untouched.
-- **Shared header**: the List card header and the grid card share one header
-  widget (status dot + name + copy + toggle + edit), since the drag handle
-  no longer differentiates them.
+- **Shared actions**: the List card header and the grid card share the
+  action button row (copy + toggle + edit). The grid card layers its
+  content vertically to fill the square tile — status dot + label on top,
+  name (and WebUI URL when present) in the middle, actions at the bottom.
 - **Reorder writes back** through the existing settings reorder path; both
   layouts use the same callback and index semantics.
 - **Schema ownership**: per ADR 003, the config schema is now
