@@ -84,8 +84,18 @@ class _FakeProcessManager extends Fake implements ProcessManager {
   @override
   Stream<ProcState> stateStream(String name) => const Stream<ProcState>.empty();
 
+  final Map<String, StreamController<String>> _outputControllers = {};
+
   @override
-  Stream<String> outputStream(String name) => const Stream<String>.empty();
+  Stream<String> outputStream(String name) {
+    return _outputControllers
+        .putIfAbsent(name, () => StreamController<String>.broadcast(sync: true))
+        .stream;
+  }
+
+  void emitOutput(String name, String line) {
+    _outputControllers[name]?.add(line);
+  }
 
   final Map<String, StreamController<Uri>> _webuiControllers = {};
 
@@ -571,10 +581,8 @@ void main() {
       expect(scrollable.position.pixels, greaterThan(0));
     });
 
-    testWidgets('grid renders compact cards without output preview', (
-      tester,
-    ) async {
-      await pumpDashboard(
+    testWidgets('grid cards show up to two output lines', (tester) async {
+      final h = await pumpDashboard(
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
@@ -600,8 +608,17 @@ void main() {
       expect(find.byIcon(Icons.edit), findsNWidgets(2));
       expect(find.byIcon(Icons.play_circle_outlined), findsNWidgets(2));
 
-      // No output preview in grid layout.
+      // No output yet: no preview text, no 'No output yet' filler.
       expect(find.text('No output yet'), findsNothing);
+
+      // Three lines emitted: only the latest two are shown.
+      h.pm.emitOutput('svc-a', 'line-1');
+      h.pm.emitOutput('svc-a', 'line-2');
+      h.pm.emitOutput('svc-a', 'line-3');
+      await tester.pump();
+
+      expect(find.text('line-2\nline-3'), findsOneWidget);
+      expect(find.textContaining('line-1'), findsNothing);
     });
 
     testWidgets('grid card shows WebUI copy button when URL detected', (

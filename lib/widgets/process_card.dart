@@ -133,8 +133,8 @@ class ProcessCardActions extends StatelessWidget {
 /// A compact square card for the Dashboard Grid layout.
 ///
 /// Layered to fill the square tile: status dot + label on top, process
-/// name (and WebUI URL when present) in the middle, action buttons along
-/// the bottom. No output preview, keeping the card dense and square.
+/// name (and WebUI URL when present) and the latest two output lines in
+/// the middle, action buttons along the bottom.
 class ProcessGridCard extends StatelessWidget {
   final ProcessViewModel viewModel;
   final VoidCallback onTap;
@@ -197,6 +197,14 @@ class ProcessGridCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                  const SizedBox(height: 4),
+                  // Latest two output lines; nothing when there is no
+                  // output yet (the card must stay compact).
+                  _OutputPreview(
+                    viewModel: viewModel,
+                    maxLines: 2,
+                    emptyHint: null,
+                  ),
                   const Spacer(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -217,19 +225,29 @@ class ProcessGridCard extends StatelessWidget {
   }
 }
 
-/// Monospace output preview showing the last [ProcessCard.previewLines] lines.
+/// Monospace output preview showing the last [maxLines] lines.
+///
+/// Shows [emptyHint] when there is no output; pass `null` to render
+/// nothing instead (used by the compact grid cards).
 class _OutputPreview extends StatelessWidget {
   final ProcessViewModel viewModel;
+  final int maxLines;
+  final String? emptyHint;
 
-  const _OutputPreview({required this.viewModel});
+  const _OutputPreview({
+    required this.viewModel,
+    this.maxLines = ProcessCard.previewLines,
+    this.emptyHint = 'No output yet',
+  });
 
   @override
   Widget build(BuildContext context) {
     final lines = viewModel.outputLines;
     if (lines.isEmpty) {
-      return const Text(
-        'No output yet',
-        style: TextStyle(
+      if (emptyHint == null) return const SizedBox.shrink();
+      return Text(
+        emptyHint!,
+        style: const TextStyle(
           fontFamily: 'monospace',
           fontSize: 12,
           color: Colors.grey,
@@ -237,8 +255,8 @@ class _OutputPreview extends StatelessWidget {
       );
     }
 
-    final preview = lines.length > ProcessCard.previewLines
-        ? lines.sublist(lines.length - ProcessCard.previewLines)
+    final preview = lines.length > maxLines
+        ? lines.sublist(lines.length - maxLines)
         : lines;
 
     return Text(
@@ -248,7 +266,7 @@ class _OutputPreview extends StatelessWidget {
         fontSize: 11,
         height: 1.3,
       ),
-      maxLines: ProcessCard.previewLines,
+      maxLines: maxLines,
       overflow: TextOverflow.ellipsis,
     );
   }
