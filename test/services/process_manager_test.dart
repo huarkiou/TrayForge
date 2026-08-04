@@ -374,6 +374,131 @@ void main() {
       });
     });
 
+    // ---- stop during starting (pending-stop) ----
+
+    group('stop during starting', () {
+      test('kills the launched process and never reaches running', () async {
+        final handle = MockProcessHandle(pid: 555);
+        mockRunner.nextHandle = handle;
+
+        final states = <ProcState>[];
+        final sub = pm.stateStream('test-svc').listen(states.add);
+
+        // start() suspends at its first await while the handle is still
+        // null, so a stop() issued in the same turn hits the pending-stop
+        // path deterministically.
+        final startFuture = pm.start('test-svc');
+        await pm.stop('test-svc');
+
+        await startFuture;
+
+        expect(states.contains(ProcState.running), isFalse);
+        expect(pm.getState('test-svc'), ProcState.stopped);
+        // The launched process was killed.
+        expect(mockRunner.killedPids, contains(handle.pid));
+        // The aborted launch never wrote a pid file.
+        expect(File('${tmpDir.path}/pids/test-svc.pid').existsSync(), isFalse);
+        await sub.cancel();
+      });
+
+      test(
+        'cancels a pending cooldown restart so no relaunch occurs',
+        () async {
+          writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+          final fresh = ProcessManager(
+            configStore: configStore,
+            processRunner: mockRunner,
+            dataDir: tmpDir.path,
+            cooldownDuration: const Duration(milliseconds: 100),
+          );
+
+          // Start, crash, restart once, then crash again into cooldown.
+          final handle1 = MockProcessHandle(pid: 600);
+          mockRunner.nextHandle = handle1;
+          await fresh.start('test-svc');
+
+          final handle2 = MockProcessHandle(pid: 601);
+          mockRunner.nextHandle = handle2;
+          handle1.closeOutputs();
+          handle1.completeExit(1);
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          expect(mockRunner.starts.length, 2);
+          expect(fresh.getState('test-svc'), ProcState.running);
+
+          // Crash again immediately — enters cooldown with a restart timer.
+          handle2.closeOutputs();
+          handle2.completeExit(1);
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          expect(fresh.getState('test-svc'), ProcState.cooldown);
+
+          // Manually start during cooldown, then stop while still starting.
+          // The stale cooldown timer must NOT relaunch the process.
+          final handle3 = MockProcessHandle(pid: 602);
+          mockRunner.nextHandle = handle3;
+          final startFuture = fresh.start('test-svc');
+          await fresh.stop('test-svc');
+          await startFuture;
+
+          expect(fresh.getState('test-svc'), ProcState.stopped);
+
+          // Wait past the cooldown window; no relaunch may occur.
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+          expect(mockRunner.starts.length, 3);
+          expect(fresh.getState('test-svc'), ProcState.stopped);
+
+          fresh.dispose();
+        },
+      );
+    });
+
+    // ---- safe dispose (closed-guards) ----
+
+    group('safe dispose', () {
+      test('no unhandled error when disposed during in-flight stop', () async {
+        mockRunner.nextHandle = MockProcessHandle(pid: 800);
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await fresh.start('test-svc');
+
+        // stop() suspends at killPid; dispose runs before the continuation
+        // resumes, so the stop continuation must guard on the closed
+        // controller instead of throwing.
+        final stopFuture = fresh.stop('test-svc');
+        fresh.dispose();
+
+        await stopFuture;
+        // If the continuation threw, the test would fail with an
+        // unhandled async error.
+      });
+
+      test(
+        'no unhandled error when exit handler fires after dispose',
+        () async {
+          final handle = MockProcessHandle(pid: 801);
+          mockRunner.nextHandle = handle;
+          final fresh = ProcessManager(
+            configStore: configStore,
+            processRunner: mockRunner,
+            dataDir: tmpDir.path,
+          );
+          await fresh.start('test-svc');
+          expect(fresh.getState('test-svc'), ProcState.running);
+
+          fresh.dispose();
+
+          // Late exit after disposal: the exit handler must not throw and
+          // must not trigger a restart.
+          handle.completeExit(1);
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+
+          expect(mockRunner.starts.length, 1);
+        },
+      );
+    });
+
     // ---- output pipeline ----
 
     group('output pipeline', () {
