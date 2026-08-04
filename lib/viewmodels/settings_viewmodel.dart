@@ -83,7 +83,9 @@ class SettingsViewModel extends ChangeNotifier {
 
   /// Deletes the config at [index] and persists.
   ///
-  /// If the process is currently running, caller must stop it first.
+  /// The process is terminated by [ProcessManager.reloadConfig] via
+  /// `applyRemoval` regardless of state — running, starting, cooldown,
+  /// or mid-stop — so no orphaned OS process or stale pid file survives.
   void delete(int index) {
     _processes = List<ProcessConfig>.from(_processes);
     _processes.removeAt(index);

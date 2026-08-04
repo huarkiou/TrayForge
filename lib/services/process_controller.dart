@@ -55,6 +55,11 @@ class ProcessController {
   /// handle and kills immediately, so the Process never reaches `running`.
   bool _pendingStop = false;
 
+  /// Set by [applyRemoval] before any teardown: the launch sequence checks
+  /// it before every side-effecting step, so an in-flight [start] can't
+  /// resurrect the pid file or touch a disposed pipeline after removal.
+  bool _removed = false;
+
   /// Once true, the controller is disposed and every later continuation
   /// (in-flight stop, exit handler, cooldown timer) becomes a no-op.
   bool _disposed = false;
@@ -112,9 +117,11 @@ class ProcessController {
   ///
   /// Honours a pending stop: if [stop] was called while this launch was
   /// in flight, the launched process is killed right after the handle is
-  /// obtained and the state never reaches `running`.
+  /// obtained and the state never reaches `running`. The same applies if
+  /// [applyRemoval] ran while launching — the process is killed and no
+  /// side effect (pid write, pipeline wiring, exit listener) happens.
   Future<void> start(AppConfig appConfig, ProcessConfig procConfig) async {
-    if (_disposed) return;
+    if (_disposed || _removed) return;
     _appConfig = appConfig;
     _procConfig = procConfig;
 
@@ -217,21 +224,29 @@ class ProcessController {
 
       _handle = handle;
 
-      // Pending-stop: the user asked to stop while we were launching.
-      // Kill immediately — the Process never reaches `running`.
-      if (_pendingStop) {
+      // Pending-stop or removal while launching: kill immediately — the
+      // Process never reaches `running`, no pid file is written, and a
+      // disposed pipeline is never touched. The `removed` flag is checked
+      // before each side-effecting step so an in-flight start can't
+      // resurrect anything after applyRemoval.
+      if (_pendingStop || _removed || _disposed) {
         _manualStop = true;
         await _processRunner.killPid(handle.pid);
-        if (_disposed) return;
+        if (_removed || _disposed) {
+          // Removal/dispose owns the teardown; the launched process is
+          // already dead, so just bail.
+          _cleanup();
+          return;
+        }
         _cleanup();
         _setState(ProcState.stopped);
         _pushSystemMessage('Process stopped');
         return;
       }
 
-      if (_disposed) return;
-
       _manualStop = false;
+
+      if (_removed || _disposed) return;
 
       _writePidFile(handle.pid);
 
@@ -286,7 +301,7 @@ class ProcessController {
   /// [ProcessManager] facade and the viewmodels) never re-decide. A toggle
   /// while `stopping` is a no-op (neither active nor terminal).
   Future<void> toggle(AppConfig appConfig, ProcessConfig procConfig) async {
-    if (_disposed) return;
+    if (_disposed || _removed) return;
     if (_state.isActive) {
       await stop();
     } else if (_state.isTerminal) {
@@ -303,8 +318,10 @@ class ProcessController {
   /// While the launch sequence is still in flight (state `starting`, no
   /// handle yet), this is a **pending stop**: the flag is set and the
   /// launch sequence kills the process as soon as the handle arrives.
+  ///
+  /// After [applyRemoval] this is a no-op — the removal owns the teardown.
   Future<void> stop() async {
-    if (_disposed) return;
+    if (_disposed || _removed) return;
 
     final handle = _handle;
     if (handle == null) {
@@ -338,6 +355,38 @@ class ProcessController {
     _cleanup();
     _setState(ProcState.stopped);
     _pushSystemMessage('Process stopped');
+  }
+
+  /// Removes this process from management entirely.
+  ///
+  /// Terminates the OS process if alive, deletes the pid file, cancels any
+  /// scheduled crash-restart, and disposes the controller. Idempotent in
+  /// any state — running, starting, cooldown, mid-stop, or stopped.
+  ///
+  /// Sets the manual-stop flag first (a late exit handler won't restart)
+  /// and the `removed` flag (the launch sequence checks it before every
+  /// side-effecting step, so an in-flight [start] can't resurrect the pid
+  /// file or touch a disposed pipeline).
+  Future<void> applyRemoval() async {
+    if (_disposed) return;
+    _removed = true;
+    _manualStop = true;
+
+    // Cancel any scheduled crash restart: nothing may relaunch after removal.
+    final rs = _restart;
+    if (rs != null) {
+      rs.cooldownTimer?.cancel();
+      _restart = null;
+    }
+
+    final handle = _handle;
+    if (handle != null) {
+      await _processRunner.killPid(handle.pid);
+    }
+
+    _cleanup();
+    _deletePidFile();
+    dispose();
   }
 
   /// Discards all buffered (un-flushed) output lines.

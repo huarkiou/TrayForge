@@ -75,6 +75,14 @@ class MockProcessRunner implements IProcessRunner {
   MockProcessHandle? nextHandle;
   final List<MockProcessHandle> _handleQueue = [];
   Exception? throwOnStart;
+
+  /// When set, [start] waits for this completer before returning a handle.
+  ///
+  /// Lets tests hold the launch sequence in flight (state `starting`) at
+  /// the handle-obtained point, so removal/stop during `starting` can be
+  /// exercised deterministically.
+  Completer<void>? startGate;
+
   bool isRunning = false;
   final Set<int> alivePids = {};
   final List<int> killedPids = [];
@@ -105,6 +113,9 @@ class MockProcessRunner implements IProcessRunner {
       ),
     );
     if (throwOnStart != null) throw throwOnStart!;
+    if (startGate != null) {
+      await startGate!.future;
+    }
     if (_handleQueue.isNotEmpty) return _handleQueue.removeAt(0);
     return nextHandle!;
   }

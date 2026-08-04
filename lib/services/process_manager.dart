@@ -175,33 +175,34 @@ class ProcessManager {
   /// Hot-swaps configuration without restarting already-running processes.
   ///
   /// Starts new processes that have `autostart: true` and are not already
-  /// running. Stops processes that are running but no longer present in
-  /// the new config. Cleans up stale controller entries for
-  /// deleted/renamed processes. Emits [onConfigReloaded] on completion.
+  /// running. Every removed Process is terminated and cleaned up via
+  /// [ProcessController.applyRemoval] regardless of state — running,
+  /// starting, cooldown, or mid-stop — so no orphaned OS process or stale
+  /// pid file survives a config edit. Emits [onConfigReloaded] on
+  /// completion.
   ///
   /// Does **not** write the config to disk — callers must [ConfigStore.save]
   /// beforehand if persistence is desired.
   Future<void> reloadConfig(AppConfig config) async {
-    // Determine which processes are currently running.
+    final newNames = config.processes.map((p) => p.name).toSet();
+
+    // Which currently-running names survive into the new config — used to
+    // avoid re-autostarting kept processes below.
     final runningNames = _controllers.entries
         .where((e) => e.value.currentState == ProcState.running)
         .map((e) => e.key)
         .toSet();
 
-    final newNames = config.processes.map((p) => p.name).toSet();
-
-    // Stop processes that are no longer in the config.
-    for (final name in runningNames.difference(newNames)) {
-      await stop(name);
-    }
-
-    // Dispose stale controller entries for deleted/renamed processes that
-    // are not currently running (running ones were stopped above).
-    final stale = _controllers.keys
+    // Every removed Process goes through applyRemoval: it terminates the
+    // OS process if alive, deletes the pid file, cancels any scheduled
+    // restart, and disposes the controller. Idempotent in any state, so
+    // running, starting, cooldown, and in-flight-stop removals all end up
+    // cleaned up (this is the orphan fix).
+    final removed = _controllers.keys
         .where((n) => !newNames.contains(n))
         .toList();
-    for (final name in stale) {
-      _controllers[name]?.dispose();
+    for (final name in removed) {
+      await _controllers[name]?.applyRemoval();
       _controllers.remove(name);
     }
 

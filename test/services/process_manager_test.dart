@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -1519,6 +1520,135 @@ void main() {
         expect(mockRunner.starts.length, 1);
 
         fresh.dispose();
+      });
+    });
+
+    // ---- applyRemoval (config-removal orphan fix) ----
+
+    group('applyRemoval', () {
+      test(
+        'removal during starting kills the launch and leaves no pid file',
+        () async {
+          final handle = MockProcessHandle(pid: 555);
+          mockRunner.nextHandle = handle;
+          mockRunner.startGate = Completer<void>();
+
+          // The launch suspends at the gated start: state `starting`,
+          // handle not yet obtained. Drain a turn so the launch gets past
+          // the OS-singleton check and parks at the gate.
+          final startFuture = pm.start('test-svc');
+          await Future<void>.delayed(Duration.zero);
+          expect(pm.getState('test-svc'), ProcState.starting);
+
+          // Remove while the launch is in flight. applyRemoval sets the
+          // removed flag synchronously, so when the gate opens the launch
+          // sequence must kill the just-launched process and bail before
+          // any side effect (pid write, pipeline wiring, exit listener).
+          writeConfig(tmpDir, AppConfig(processes: []));
+          await pm.reloadConfig(AppConfig(processes: []));
+
+          mockRunner.startGate!.complete();
+          await startFuture;
+
+          // The launched process was killed; no pid file was ever written.
+          expect(mockRunner.killedPids, contains(handle.pid));
+          expect(
+            File('${tmpDir.path}/pids/test-svc.pid').existsSync(),
+            isFalse,
+          );
+
+          // A late exit after removal triggers no restart.
+          handle.completeExit(1);
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          expect(mockRunner.starts.length, 1);
+        },
+      );
+
+      test(
+        'removal during running kills the process and deletes the pid file',
+        () async {
+          final handle = MockProcessHandle(pid: 666);
+          mockRunner.nextHandle = handle;
+          await pm.start('test-svc');
+          expect(pm.getState('test-svc'), ProcState.running);
+          expect(File('${tmpDir.path}/pids/test-svc.pid').existsSync(), isTrue);
+
+          writeConfig(tmpDir, AppConfig(processes: []));
+          await pm.reloadConfig(AppConfig(processes: []));
+
+          // OS process killed, pid file deleted, name inert.
+          expect(mockRunner.killedPids, contains(handle.pid));
+          expect(
+            File('${tmpDir.path}/pids/test-svc.pid').existsSync(),
+            isFalse,
+          );
+          expect(pm.getState('test-svc'), ProcState.stopped);
+
+          // A late exit after removal triggers no restart.
+          handle.completeExit(1);
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          expect(mockRunner.starts.length, 1);
+
+          // Idempotence: a second removal of the same name (controller
+          // already gone) is a safe no-op — no double kill, no throw.
+          writeConfig(tmpDir, AppConfig(processes: []));
+          await pm.reloadConfig(AppConfig(processes: []));
+          expect(mockRunner.killedPids, [handle.pid]);
+          expect(mockRunner.starts.length, 1);
+        },
+      );
+
+      test('removal during cooldown cancels the scheduled restart', () async {
+        writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+          cooldownDuration: const Duration(milliseconds: 100),
+        );
+
+        // Start, crash, restart once, crash again → cooldown with a timer.
+        final handle1 = MockProcessHandle(pid: 700);
+        mockRunner.nextHandle = handle1;
+        await fresh.start('test-svc');
+
+        final handle2 = MockProcessHandle(pid: 701);
+        mockRunner.nextHandle = handle2;
+        handle1.closeOutputs();
+        handle1.completeExit(1);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(mockRunner.starts.length, 2);
+
+        handle2.closeOutputs();
+        handle2.completeExit(1);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(fresh.getState('test-svc'), ProcState.cooldown);
+
+        // Remove while cooling down: no restart may fire after the window.
+        writeConfig(tmpDir, AppConfig(processes: []));
+        await fresh.reloadConfig(AppConfig(processes: []));
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        expect(mockRunner.starts.length, 2);
+        expect(fresh.getState('test-svc'), ProcState.stopped);
+
+        fresh.dispose();
+      });
+
+      test('removal during in-flight stop does not throw', () async {
+        final handle = MockProcessHandle(pid: 800);
+        mockRunner.nextHandle = handle;
+        await pm.start('test-svc');
+
+        // stop() suspends at killPid; removal runs before the stop
+        // continuation resumes. The overlapping teardown (stop cleanup +
+        // applyRemoval) must be idempotent — no throw, no stale pid file.
+        final stopFuture = pm.stop('test-svc');
+        writeConfig(tmpDir, AppConfig(processes: []));
+        await pm.reloadConfig(AppConfig(processes: []));
+        await stopFuture;
+
+        expect(pm.getState('test-svc'), ProcState.stopped);
+        expect(File('${tmpDir.path}/pids/test-svc.pid').existsSync(), isFalse);
       });
     });
 
