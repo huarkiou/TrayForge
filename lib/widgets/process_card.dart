@@ -133,7 +133,7 @@ class ProcessCardActions extends StatelessWidget {
 /// A compact square card for the Dashboard Grid layout.
 ///
 /// Layered to fill the square tile: status dot + label on top, process
-/// name (and WebUI URL when present) and the latest two output lines in
+/// name (and WebUI URL when present) and the latest five output lines in
 /// the middle, action buttons along the bottom.
 class ProcessGridCard extends StatelessWidget {
   final ProcessViewModel viewModel;
@@ -198,11 +198,11 @@ class ProcessGridCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   const SizedBox(height: 4),
-                  // Latest two output lines; nothing when there is no
+                  // Latest five output lines; nothing when there is no
                   // output yet (the card must stay compact).
                   _OutputPreview(
                     viewModel: viewModel,
-                    maxLines: 2,
+                    maxLines: 5,
                     emptyHint: null,
                   ),
                   const Spacer(),
@@ -259,15 +259,25 @@ class _OutputPreview extends StatelessWidget {
         ? lines.sublist(lines.length - maxLines)
         : lines;
 
-    return Text(
-      preview.join('\n'),
-      style: const TextStyle(
-        fontFamily: 'monospace',
-        fontSize: 11,
-        height: 1.3,
-      ),
-      maxLines: maxLines,
-      overflow: TextOverflow.ellipsis,
+    // One Text per output line: each renders on a single row (long lines
+    // are truncated, never soft-wrapped), so [maxLines] counts *output*
+    // lines and the latest lines always stay visible.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final line in preview)
+          Text(
+            line,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              height: 1.3,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+      ],
     );
   }
 }

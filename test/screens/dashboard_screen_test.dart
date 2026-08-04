@@ -581,7 +581,7 @@ void main() {
       expect(scrollable.position.pixels, greaterThan(0));
     });
 
-    testWidgets('grid cards show up to two output lines', (tester) async {
+    testWidgets('grid cards show up to five output lines', (tester) async {
       final h = await pumpDashboard(
         tester,
         config: AppConfig(
@@ -611,14 +611,47 @@ void main() {
       // No output yet: no preview text, no 'No output yet' filler.
       expect(find.text('No output yet'), findsNothing);
 
-      // Three lines emitted: only the latest two are shown.
-      h.pm.emitOutput('svc-a', 'line-1');
-      h.pm.emitOutput('svc-a', 'line-2');
-      h.pm.emitOutput('svc-a', 'line-3');
+      // Six lines emitted: only the latest five are shown, one Text each.
+      for (var i = 1; i <= 6; i++) {
+        h.pm.emitOutput('svc-a', 'line-$i');
+      }
       await tester.pump();
 
-      expect(find.text('line-2\nline-3'), findsOneWidget);
-      expect(find.textContaining('line-1'), findsNothing);
+      final previewTexts = tester
+          .widgetList<Text>(
+            find.byWidgetPredicate(
+              (w) => w is Text && w.data != null && w.data!.startsWith('line-'),
+            ),
+          )
+          .toList();
+      expect(previewTexts, hasLength(5));
+      expect(previewTexts.first.data, 'line-2');
+      expect(previewTexts.last.data, 'line-6');
+      expect(find.text('line-1'), findsNothing);
+    });
+
+    testWidgets('long output line does not hide the latest line', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
+
+      // A line long enough to soft-wrap must be truncated to one row,
+      // not eat the row budget of the newer lines below it.
+      final longLine = List.filled(40, 'word').join(' ');
+      h.pm.emitOutput('svc-a', longLine);
+      for (var i = 2; i <= 5; i++) {
+        h.pm.emitOutput('svc-a', 'tail-$i');
+      }
+      await tester.pump();
+
+      expect(find.text(longLine), findsOneWidget);
+      expect(find.text('tail-5'), findsOneWidget);
     });
 
     testWidgets('grid card shows WebUI copy button when URL detected', (

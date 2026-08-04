@@ -192,14 +192,17 @@ void main() {
       await tester.pumpWidget(buildCard());
       await tester.pump();
 
-      // Should show last 15 lines.
-      final text = tester.widget<Text>(
-        find.byWidgetPredicate(
-          (w) => w is Text && w.data != null && w.data!.startsWith('line '),
-        ),
-      );
-      expect(text.data, contains('line 5'));
-      expect(text.data, contains('line 19'));
+      // Should show the last 15 lines, one Text per output line.
+      final texts = tester
+          .widgetList<Text>(
+            find.byWidgetPredicate(
+              (w) => w is Text && w.data != null && w.data!.startsWith('line '),
+            ),
+          )
+          .toList();
+      expect(texts, hasLength(15));
+      expect(texts.first.data, 'line 5');
+      expect(texts.last.data, 'line 19');
     });
 
     // ---- Status dot ----
