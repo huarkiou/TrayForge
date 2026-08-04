@@ -40,6 +40,13 @@ Interface decisions (ADR-worthy, recorded here as agreed):
   stop. `stop()` sets a pending-stop flag; the launch sequence checks it
   right after obtaining the handle and kills immediately. Same mechanism
   as `removed`.
+- **`stop` during `cooldown` cancels the scheduled restart**: nothing is
+  running, but the pending auto-restart is the only thing that could
+  start the process again — it is cancelled and the state becomes
+  `stopped`. A stale exit or stop continuation never clobbers a
+  replacement launch: the exit handler and the stop continuation both
+  guard on the handle being the current one (`_handle != handle` is
+  ignored only when the handle is already null, i.e. cleaned up).
 - **Dispose is safe against late continuations**: `_setState` and system
   messages guard on closed controllers/disposed pipeline, so an in-flight
   `stop()` continuation or exit handler can't throw after `applyRemoval`

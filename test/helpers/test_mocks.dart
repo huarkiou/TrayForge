@@ -83,6 +83,14 @@ class MockProcessRunner implements IProcessRunner {
   /// exercised deterministically.
   Completer<void>? startGate;
 
+  /// FIFO queue of gates for [killPid]. When non-empty, each kill call
+  /// waits on the next gate before returning.
+  ///
+  /// Lets tests hold a stop/removal in flight at the kill point (e.g.
+  /// while a new start lands, exercising the stale-launch guards). A
+  /// completed gate lets a call pass through while the next one parks.
+  final List<Completer<void>> killPidGates = [];
+
   bool isRunning = false;
   final Set<int> alivePids = {};
   final List<int> killedPids = [];
@@ -146,6 +154,9 @@ class MockProcessRunner implements IProcessRunner {
     killedPids.add(pid);
     // Simulate: after kill, the PID is no longer alive.
     alivePids.remove(pid);
+    if (killPidGates.isNotEmpty) {
+      await killPidGates.removeAt(0).future;
+    }
     return killPidResult;
   }
 

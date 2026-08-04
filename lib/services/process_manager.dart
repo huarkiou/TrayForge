@@ -174,8 +174,9 @@ class ProcessManager {
   /// Hot-swaps configuration without restarting already-running processes.
   ///
   /// Starts new processes that have `autostart: true` and are not already
-  /// running. Every removed Process is terminated and cleaned up via
-  /// [ProcessController.applyRemoval] regardless of state — running,
+  /// running, `starting`, or `stopping` — an in-flight launch or stop is
+  /// never doubled up. Every removed Process is terminated and cleaned up
+  /// via [ProcessController.applyRemoval] regardless of state — running,
   /// starting, cooldown, or mid-stop — so no orphaned OS process or stale
   /// pid file survives a config edit. Emits [onConfigReloaded] on
   /// completion.
@@ -185,12 +186,11 @@ class ProcessManager {
   Future<void> reloadConfig(AppConfig config) async {
     final newNames = config.processes.map((p) => p.name).toSet();
 
-    // Which currently-running names survive into the new config — used to
-    // avoid re-autostarting kept processes below.
-    final runningNames = _controllers.entries
-        .where((e) => e.value.currentState == ProcState.running)
-        .map((e) => e.key)
-        .toSet();
+    // Removed names become inert immediately — before the removal loop's
+    // first await — so a call into the manager mid-reload cannot
+    // materialize a phantom controller for a name being removed (or
+    // resurrect its pid file via a phantom launch).
+    _configuredNames = newNames;
 
     // Every removed Process goes through applyRemoval: it terminates the
     // OS process if alive, deletes the pid file, cancels any scheduled
@@ -212,11 +212,18 @@ class ProcessManager {
     // so viewmodels always subscribe to real streams.
     _materialize(config);
 
-    // Start new autostart processes that aren't already running.
+    // Start new autostart processes. Kept processes that are running or
+    // mid-transition are skipped: re-starting them would double-launch or
+    // fight an in-flight stop. Only terminal states (stopped/crashed/
+    // cooldown) and new names get the autostart; a start from `cooldown`
+    // supersedes the scheduled auto-restart inside the controller.
     for (final proc in config.processes) {
-      if (proc.autostart && !runningNames.contains(proc.name)) {
-        await start(proc.name);
+      if (!proc.autostart) continue;
+      final state = _controllers[proc.name]?.currentState;
+      if (state != null && (state.isActive || state == ProcState.stopping)) {
+        continue;
       }
+      await start(proc.name);
     }
 
     _onConfigReloadedController.add(null);

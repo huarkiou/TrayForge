@@ -208,8 +208,7 @@ void main() {
 
       // Simulate config becoming empty — we need to rebuild.
       // Since we use a fake config store, we directly manipulate the VM.
-      // But configChanged is the trigger. We can't easily test this
-      // with the fake since it has a const empty stream.
+      // onConfigReloaded is the trigger; the fake manager never emits it.
       // This is better tested at the ViewModel level, which we already do.
     });
 

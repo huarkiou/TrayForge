@@ -297,8 +297,8 @@ void main() {
         ),
       );
 
-      // Tap toggle to enter optimistic state. Since the fake never
-      // emits a state change, the spinner should appear.
+      // Tap toggle to enter the transitioning (spinner) state. Since the
+      // fake never emits a state change, the spinner stays up.
       vm2.toggle();
       await tester.pump();
 

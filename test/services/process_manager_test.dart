@@ -391,6 +391,46 @@ void main() {
         await pm.start('test-svc');
         expect(pm.getState('test-svc'), ProcState.running);
       });
+
+      test('stop during cooldown cancels the scheduled restart', () async {
+        writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+          cooldownDuration: const Duration(milliseconds: 100),
+        );
+        await fresh.init();
+
+        // Start, crash, restart once, then crash again into cooldown.
+        final handle1 = MockProcessHandle(pid: 610);
+        mockRunner.nextHandle = handle1;
+        await fresh.start('test-svc');
+
+        final handle2 = MockProcessHandle(pid: 611);
+        mockRunner.nextHandle = handle2;
+        handle1.closeOutputs();
+        handle1.completeExit(1);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(mockRunner.starts.length, 2);
+
+        handle2.closeOutputs();
+        handle2.completeExit(1);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(fresh.getState('test-svc'), ProcState.cooldown);
+
+        // Stop during cooldown: nothing is running, but the scheduled
+        // auto-restart must be cancelled — a stop means no relaunch.
+        await fresh.stop('test-svc');
+        expect(fresh.getState('test-svc'), ProcState.stopped);
+
+        // Wait past the cooldown window; no relaunch may occur.
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        expect(mockRunner.starts.length, 2);
+        expect(fresh.getState('test-svc'), ProcState.stopped);
+
+        fresh.dispose();
+      });
     });
 
     // ---- stop during starting (pending-stop) ----
@@ -653,6 +693,78 @@ void main() {
           handle.completeExit(1);
           await Future<void>.delayed(const Duration(milliseconds: 10));
 
+          expect(mockRunner.starts.length, 1);
+        },
+      );
+
+      test('stale exit of a replaced launch neither restarts nor clobbers '
+          'the new launch', () async {
+        final handle1 = MockProcessHandle(pid: 810);
+        mockRunner.nextHandle = handle1;
+        await pm.start('test-svc');
+        expect(pm.getState('test-svc'), ProcState.running);
+
+        // Hold the stop at its kill while a new start lands.
+        final gate = Completer<void>();
+        mockRunner.killPidGates.add(gate);
+        final stopFuture = pm.stop('test-svc');
+        expect(pm.getState('test-svc'), ProcState.stopping);
+
+        final handle2 = MockProcessHandle(pid: 811);
+        mockRunner.nextHandle = handle2;
+        await pm.start('test-svc');
+        expect(pm.getState('test-svc'), ProcState.running);
+        expect(File('${tmpDir.path}/pids/test-svc.pid').existsSync(), isTrue);
+
+        // The replaced process exits late: its exit handler must not
+        // restart it (it was stopped) and must not clean up the new
+        // launch's handle/pid file.
+        handle1.completeExit(1);
+        await Future<void>.delayed(Duration.zero);
+        expect(mockRunner.starts.length, 2);
+        expect(pm.getState('test-svc'), ProcState.running);
+        expect(File('${tmpDir.path}/pids/test-svc.pid').existsSync(), isTrue);
+
+        // The in-flight stop continuation must not land its cleanup on
+        // the new launch either.
+        gate.complete();
+        await stopFuture;
+        expect(pm.getState('test-svc'), ProcState.running);
+        expect(mockRunner.starts.length, 2);
+        expect(File('${tmpDir.path}/pids/test-svc.pid').existsSync(), isTrue);
+
+        // Cleanup: let the new process exit normally.
+        handle2.closeOutputs();
+        handle2.completeExit(0);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(pm.getState('test-svc'), ProcState.crashed);
+      });
+
+      test(
+        'stop lands stopped when the process exits during the kill',
+        () async {
+          final handle = MockProcessHandle(pid: 812);
+          mockRunner.nextHandle = handle;
+          await pm.start('test-svc');
+          expect(pm.getState('test-svc'), ProcState.running);
+
+          // Hold the stop at its kill.
+          final gate = Completer<void>();
+          mockRunner.killPidGates.add(gate);
+          final stopFuture = pm.stop('test-svc');
+          expect(pm.getState('test-svc'), ProcState.stopping);
+
+          // The process dies on its own while the kill is in flight: the
+          // exit handler cleans up first, so the stop continuation must
+          // still land the final `stopped` (it must not mistake the nulled
+          // handle for a replacement launch).
+          handle.completeExit(1);
+          await Future<void>.delayed(Duration.zero);
+
+          gate.complete();
+          await stopFuture;
+          expect(pm.getState('test-svc'), ProcState.stopped);
+          // Manual stop: no restart from the exit.
           expect(mockRunner.starts.length, 1);
         },
       );
@@ -1698,6 +1810,140 @@ void main() {
         await sub.cancel();
         fresh.dispose();
       });
+
+      test('does not re-start a kept autostart process mid-start', () async {
+        writeConfig(tmpDir, _testConfig(name: 'svc1', autostart: true));
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+
+        // Hold the autostart launch in flight (state `starting`).
+        final gate = Completer<void>();
+        mockRunner.startGate = gate;
+        mockRunner.nextHandle = MockProcessHandle(pid: 720);
+        final initFuture = fresh.init();
+        await Future<void>.delayed(Duration.zero);
+        expect(fresh.getState('svc1'), ProcState.starting);
+
+        // Reload with the same config: the kept process is mid-start, so
+        // the autostart pass must not launch a second instance.
+        final sameConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
+          ],
+        );
+        writeConfig(tmpDir, sameConfig);
+        await fresh.reloadConfig(sameConfig);
+        expect(mockRunner.starts.length, 1);
+
+        // The original launch completes and reaches running.
+        gate.complete();
+        await initFuture;
+        expect(fresh.getState('svc1'), ProcState.running);
+        expect(mockRunner.starts.length, 1);
+
+        fresh.dispose();
+      });
+
+      test('does not re-start a kept autostart process mid-stop', () async {
+        writeConfig(tmpDir, _testConfig(name: 'svc1', autostart: true));
+        mockRunner.nextHandle = MockProcessHandle(pid: 730);
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await fresh.init();
+        expect(fresh.getState('svc1'), ProcState.running);
+
+        // Hold the stop in flight (state `stopping`).
+        final gate = Completer<void>();
+        mockRunner.killPidGates.add(gate);
+        final stopFuture = fresh.stop('svc1');
+        expect(fresh.getState('svc1'), ProcState.stopping);
+
+        // Reload with the same config: the kept process is mid-stop, so
+        // the autostart pass must not fight the in-flight stop.
+        final sameConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
+          ],
+        );
+        writeConfig(tmpDir, sameConfig);
+        await fresh.reloadConfig(sameConfig);
+        expect(mockRunner.starts.length, 1);
+
+        gate.complete();
+        await stopFuture;
+        expect(fresh.getState('svc1'), ProcState.stopped);
+        expect(mockRunner.starts.length, 1);
+
+        fresh.dispose();
+      });
+
+      test(
+        'removed names stay inert while removal is still in flight',
+        () async {
+          writeConfig(
+            tmpDir,
+            AppConfig(
+              outputRefreshMs: 10,
+              outputHistoryLimit: 100,
+              processes: [
+                ProcessConfig(name: 'doomed-a', cmd: 'a.exe'),
+                ProcessConfig(name: 'doomed-b', cmd: 'b.exe'),
+              ],
+            ),
+          );
+          mockRunner.enqueueHandles([
+            MockProcessHandle(pid: 740),
+            MockProcessHandle(pid: 741),
+          ]);
+          // If a phantom controller were ever materialized, its launch
+          // would consume this handle (pre-fix it wrote a stale pid file).
+          mockRunner.nextHandle = MockProcessHandle(pid: 742);
+          final fresh = ProcessManager(
+            configStore: configStore,
+            processRunner: mockRunner,
+            dataDir: tmpDir.path,
+          );
+          await fresh.init();
+          await fresh.start('doomed-a');
+          await fresh.start('doomed-b');
+          expect(mockRunner.starts.length, 2);
+
+          // Removal of 'doomed-a' completes first; 'doomed-b''s kill is
+          // gated, opening the window where 'doomed-a' is out of the map
+          // but — pre-fix — still in the configured-name set, so a facade
+          // call would resurrect a phantom controller that relaunches it.
+          mockRunner.killPidGates.add(Completer<void>()..complete());
+          final gateB = Completer<void>();
+          mockRunner.killPidGates.add(gateB);
+          final reloadFuture = fresh.reloadConfig(AppConfig(processes: []));
+          await Future<void>.delayed(Duration.zero);
+
+          // Facade call for the removed name during the window: inert.
+          await fresh.start('doomed-a');
+          expect(mockRunner.starts.length, 2);
+          expect(
+            File('${tmpDir.path}/pids/doomed-a.pid').existsSync(),
+            isFalse,
+          );
+
+          gateB.complete();
+          await reloadFuture;
+          expect(mockRunner.starts.length, 2);
+          expect(fresh.getState('doomed-a'), ProcState.stopped);
+
+          fresh.dispose();
+        },
+      );
     });
 
     // ---- cleanup_cwd ----

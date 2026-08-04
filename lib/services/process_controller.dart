@@ -280,7 +280,10 @@ class ProcessController {
 
       // Monitor exit
       handle.exitCode.then((exitCode) {
-        if (_disposed) return;
+        // Stale exit: the handle was replaced by a newer launch before
+        // this process died. Neither restart (it was stopped) nor clean
+        // up the current launch's handle/pid file.
+        if (_disposed || _handle != handle) return;
         final wasManual = _manualStop;
         _manualStop = false;
         if (!wasManual) {
@@ -319,6 +322,9 @@ class ProcessController {
   /// handle yet), this is a **pending stop**: the flag is set and the
   /// launch sequence kills the process as soon as the handle arrives.
   ///
+  /// During `cooldown` the scheduled auto-restart is cancelled and the
+  /// state becomes `stopped` — nothing may relaunch after a stop.
+  ///
   /// After [applyRemoval] this is a no-op — the removal owns the teardown.
   Future<void> stop() async {
     if (_disposed || _removed) return;
@@ -328,30 +334,34 @@ class ProcessController {
       if (_state == ProcState.starting) {
         // Cancel any pending cooldown restart: this launch is being
         // aborted and must not be relaunched by a stale timer.
-        final rs = _restart;
-        if (rs != null) {
-          rs.cooldownTimer?.cancel();
-          _restart = null;
-        }
+        _cancelRestart();
         _pendingStop = true;
         _manualStop = true;
         _pushSystemMessage('Process stopping...');
+      } else if (_state == ProcState.cooldown) {
+        // Nothing is running, but the scheduled auto-restart is the only
+        // thing that could start the process again — cancel it.
+        _cancelRestart();
+        _setState(ProcState.stopped);
+        _pushSystemMessage('Process stopped');
       }
       return;
     }
 
     _setState(ProcState.stopping);
     _manualStop = true;
-    final rs = _restart;
-    if (rs != null) {
-      rs.cooldownTimer?.cancel();
-      _restart = null;
-    }
+    _cancelRestart();
     _pushSystemMessage('Process stopping...');
 
     await _processRunner.killPid(handle.pid);
 
     if (_disposed || _removed) return;
+    // A newer launch replaced this stop's target while the kill was in
+    // flight: the old process is dead, but cleanup belongs to the new
+    // launch — don't clobber its handle or pid file. A null handle means
+    // the exit handler already cleaned up (the process died on its own
+    // during the kill), so the stop still lands its final `stopped`.
+    if (_handle != null && _handle != handle) return;
     _cleanup();
     _setState(ProcState.stopped);
     _pushSystemMessage('Process stopped');
@@ -373,11 +383,7 @@ class ProcessController {
     _manualStop = true;
 
     // Cancel any scheduled crash restart: nothing may relaunch after removal.
-    final rs = _restart;
-    if (rs != null) {
-      rs.cooldownTimer?.cancel();
-      _restart = null;
-    }
+    _cancelRestart();
 
     final handle = _handle;
     if (handle != null) {
@@ -436,6 +442,19 @@ class ProcessController {
   // ---------------------------------------------------------------------------
   // Crash restart
   // ---------------------------------------------------------------------------
+
+  /// Cancels any scheduled crash-restart so nothing may relaunch the
+  /// process. Called by [stop] (starting + cooldown) and [applyRemoval].
+  ///
+  /// Not used by [start]'s timer cancel: a manual start supersedes the
+  /// scheduled restart but keeps the restart budget ([_RestartState])
+  /// intact.
+  void _cancelRestart() {
+    final rs = _restart;
+    if (rs == null) return;
+    rs.cooldownTimer?.cancel();
+    _restart = null;
+  }
 
   void _onUnexpectedExit(int exitCode) {
     _pushSystemMessage('Process exited with code $exitCode');
