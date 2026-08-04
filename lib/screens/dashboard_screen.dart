@@ -4,15 +4,18 @@ import 'package:trayforge/screens/process_detail_screen.dart';
 import 'package:trayforge/screens/process_edit_page.dart';
 import 'package:trayforge/screens/settings_page.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
+import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 import 'package:trayforge/widgets/process_card.dart';
 
 /// Dashboard screen showing process cards or a welcome screen.
 ///
 /// When no processes are configured, displays a welcome screen with an
-/// "Add Process" button. When processes exist, shows a scrollable list
-/// of [ProcessCard] widgets. On startup, if a corrupted config was detected,
-/// shows an alert dialog before rendering.
+/// "Add Process" button. When processes exist, shows the configured layout:
+/// a scrollable list of [ProcessCard] widgets or an adaptive grid of
+/// [ProcessGridCard] widgets, switchable via an AppBar toggle. On startup,
+/// if a corrupted config was detected, shows an alert dialog before
+/// rendering.
 class DashboardScreen extends StatefulWidget {
   final DashboardViewModel viewModel;
   final SettingsViewModel? settingsViewModel;
@@ -62,41 +65,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Processes'),
-        actions: [
-          if (widget.settingsViewModel != null)
-            IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: 'Add process',
-              onPressed: () => _openAddPage(context),
-            ),
-          if (widget.settingsViewModel != null)
-            IconButton(
-              icon: const Icon(Icons.settings),
-              tooltip: 'Settings',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        SettingsPage(viewModel: widget.settingsViewModel!),
+    final settingsViewModel = widget.settingsViewModel;
+    return ListenableBuilder(
+      listenable: Listenable.merge([widget.viewModel, ?settingsViewModel]),
+      builder: (context, _) {
+        final isEmpty = widget.viewModel.isEmpty;
+        final isListLayout =
+            settingsViewModel?.dashboardLayout == DashboardLayout.list;
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Processes'),
+            actions: [
+              if (settingsViewModel != null && !isEmpty)
+                IconButton(
+                  icon: Icon(isListLayout ? Icons.grid_view : Icons.view_list),
+                  tooltip: isListLayout
+                      ? 'Switch to grid view'
+                      : 'Switch to list view',
+                  onPressed: () => settingsViewModel.setDashboardLayout(
+                    isListLayout ? DashboardLayout.grid : DashboardLayout.list,
                   ),
-                );
-              },
-            ),
-        ],
-      ),
-      body: ListenableBuilder(
-        listenable: widget.viewModel,
-        builder: (context, _) {
-          if (widget.viewModel.isEmpty) {
-            return _buildWelcomeBody(context);
-          }
-          return _buildDashboardBody(context);
-        },
-      ),
+                ),
+              if (settingsViewModel != null)
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Add process',
+                  onPressed: () => _openAddPage(context),
+                ),
+              if (settingsViewModel != null)
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  tooltip: 'Settings',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            SettingsPage(viewModel: settingsViewModel),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+          body: isEmpty
+              ? _buildWelcomeBody(context)
+              : _buildDashboardBody(context),
+        );
+      },
     );
   }
 
@@ -121,6 +137,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildDashboardBody(BuildContext context) {
+    final layout =
+        widget.settingsViewModel?.dashboardLayout ?? DashboardLayout.list;
+    if (layout == DashboardLayout.grid) {
+      return _buildGridBody(context);
+    }
+    return _buildListBody(context);
+  }
+
+  Widget _buildListBody(BuildContext context) {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: widget.viewModel.processViewModels.length,
@@ -138,20 +163,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: ProcessCard(
             viewModel: vm,
             onEditTap: () => _openEditPage(context, vm.name),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ProcessDetailPage(
-                    viewModel: vm,
-                    onEditTap: () => _openEditPage(context, vm.name),
-                  ),
-                ),
-              );
-            },
+            onTap: () => _openDetail(context, vm),
           ),
         );
       },
+    );
+  }
+
+  /// Adaptive grid of compact square cards; columns adapt to window width.
+  Widget _buildGridBody(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 280,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 1,
+      ),
+      itemCount: widget.viewModel.processViewModels.length,
+      itemBuilder: (context, index) {
+        final vm = widget.viewModel.processViewModels[index];
+        return ProcessGridCard(
+          viewModel: vm,
+          onEditTap: () => _openEditPage(context, vm.name),
+          onTap: () => _openDetail(context, vm),
+        );
+      },
+    );
+  }
+
+  void _openDetail(BuildContext context, ProcessViewModel vm) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProcessDetailPage(
+          viewModel: vm,
+          onEditTap: () => _openEditPage(context, vm.name),
+        ),
+      ),
     );
   }
 

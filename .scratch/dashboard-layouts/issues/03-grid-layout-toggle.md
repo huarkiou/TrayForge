@@ -16,17 +16,17 @@ tickets touch the same Dashboard screen and its tests)
 
 **Status:** ready-for-agent
 
-- [ ] Toggle button visible only when processes exist (same visibility rule
+- [x] Toggle button visible only when processes exist (same visibility rule
       as the Add/Settings buttons); absent on the welcome screen
-- [ ] Tapping the button switches between List and Grid layout; the icon
+- [x] Tapping the button switches between List and Grid layout; the icon
       shows the target layout
-- [ ] Grid renders square compact cards: status dot, name, WebUI copy,
+- [x] Grid renders square compact cards: status dot, name, WebUI copy,
       toggle, edit; no output preview; columns adapt to window width
-- [ ] Tapping a grid card opens the detail page; card controls work
-- [ ] Layout choice persists; Dashboard opens in the stored layout on
+- [x] Tapping a grid card opens the detail page; card controls work
+- [x] Layout choice persists; Dashboard opens in the stored layout on
       startup
-- [ ] Changing the layout does not reset other stored globals (refresh
+- [x] Changing the layout does not reset other stored globals (refresh
       interval / history limit survive a toggle), asserted via the
       recording config-store fake
-- [ ] Widget tests cover button visibility, switching, grid rendering,
+- [x] Widget tests cover button visibility, switching, grid rendering,
       tap-to-detail, and persistence (external behavior only)

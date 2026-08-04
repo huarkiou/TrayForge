@@ -39,7 +39,7 @@ class ProcessCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Header(viewModel: viewModel, onEditTap: onEditTap),
+                  ProcessCardHeader(viewModel: viewModel, onEditTap: onEditTap),
                   const SizedBox(height: 8),
                   _OutputPreview(viewModel: viewModel),
                 ],
@@ -52,12 +52,13 @@ class ProcessCard extends StatelessWidget {
   }
 }
 
-/// Header row: status dot, name, WebUI button, toggle button, edit button.
-class _Header extends StatelessWidget {
+/// Header row shared by the List card and the Grid card: status dot, name,
+/// WebUI button, toggle button, edit button.
+class ProcessCardHeader extends StatelessWidget {
   final ProcessViewModel viewModel;
   final VoidCallback? onEditTap;
 
-  const _Header({required this.viewModel, this.onEditTap});
+  const ProcessCardHeader({super.key, required this.viewModel, this.onEditTap});
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +102,46 @@ class _Header extends StatelessWidget {
         ),
         if (editButton != null) ...[const SizedBox(width: 4), editButton],
       ],
+    );
+  }
+}
+
+/// A compact square card for the Dashboard Grid layout.
+///
+/// Shows the shared [ProcessCardHeader] (status dot, name, WebUI copy,
+/// toggle, edit) with no output preview, keeping the card dense and square.
+class ProcessGridCard extends StatelessWidget {
+  final ProcessViewModel viewModel;
+  final VoidCallback onTap;
+  final VoidCallback? onEditTap;
+
+  const ProcessGridCard({
+    super.key,
+    required this.viewModel,
+    required this.onTap,
+    this.onEditTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, _) {
+        return Card(
+          margin: EdgeInsets.zero,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: ProcessCardHeader(
+                viewModel: viewModel,
+                onEditTap: onEditTap,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -10,6 +10,8 @@ import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
+import 'package:trayforge/widgets/process_card.dart';
+import 'package:trayforge/widgets/status_dot.dart';
 
 import '../helpers/recording_config_store.dart';
 
@@ -48,8 +50,18 @@ class _FakeProcessManager extends Fake implements ProcessManager {
   @override
   Stream<String> outputStream(String name) => const Stream<String>.empty();
 
+  final Map<String, StreamController<Uri>> _webuiControllers = {};
+
   @override
-  Stream<Uri> webUiStream(String name) => const Stream<Uri>.empty();
+  Stream<Uri> webUiStream(String name) {
+    return _webuiControllers
+        .putIfAbsent(name, () => StreamController<Uri>.broadcast(sync: true))
+        .stream;
+  }
+
+  void emitWebUi(String name, Uri url) {
+    _webuiControllers[name]?.add(url);
+  }
 
   @override
   Stream<void> get onConfigReloaded => _configReloaded.stream;
@@ -419,7 +431,6 @@ void main() {
     testWidgets('long-press drag reorders cards and persists', (tester) async {
       final configStore = RecordingConfigStore(
         AppConfig(
-          dashboardLayout: DashboardLayout.grid,
           processes: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
@@ -462,7 +473,344 @@ void main() {
       final saved = configStore.lastSaved;
       expect(saved, isNotNull);
       expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
-      expect(saved.dashboardLayout, DashboardLayout.grid);
+      expect(saved.dashboardLayout, DashboardLayout.list);
+    });
+
+    // ---- Layout toggle ----
+
+    testWidgets('layout toggle hidden on welcome screen', (tester) async {
+      final configStore = _FakeConfigStore(AppConfig(processes: []));
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: _FakeProcessManager(),
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: _FakeProcessManager(),
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      expect(find.byTooltip('Switch to grid view'), findsNothing);
+      expect(find.byTooltip('Switch to list view'), findsNothing);
+    });
+
+    testWidgets('layout toggle hidden without settingsViewModel', (
+      tester,
+    ) async {
+      final dm = DashboardViewModel(
+        configStore: _FakeConfigStore(
+          AppConfig(
+            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          ),
+        ),
+        processManager: _FakeProcessManager(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: DashboardScreen(viewModel: dm)),
+      );
+
+      expect(find.byTooltip('Switch to grid view'), findsNothing);
+      expect(find.byTooltip('Switch to list view'), findsNothing);
+    });
+
+    testWidgets('layout toggle shown with processes, icon shows grid target', (
+      tester,
+    ) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      // In list layout the button offers the grid and shows a grid icon.
+      expect(find.byTooltip('Switch to grid view'), findsOneWidget);
+      expect(find.byIcon(Icons.grid_view), findsOneWidget);
+      expect(find.byTooltip('Switch to list view'), findsNothing);
+    });
+
+    testWidgets('tapping layout toggle switches layout and persists', (
+      tester,
+    ) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      // Switch to grid: grid appears, icon now offers the list.
+      await tester.tap(find.byTooltip('Switch to grid view'));
+      await tester.pump();
+
+      expect(find.byType(GridView), findsOneWidget);
+      expect(find.byType(ReorderableListView), findsNothing);
+      expect(find.byType(ProcessGridCard), findsOneWidget);
+      expect(find.byTooltip('Switch to list view'), findsOneWidget);
+      expect(find.byIcon(Icons.view_list), findsOneWidget);
+
+      var saved = configStore.lastSaved;
+      expect(saved, isNotNull);
+      expect(saved!.dashboardLayout, DashboardLayout.grid);
+
+      // Switch back to list.
+      await tester.tap(find.byTooltip('Switch to list view'));
+      await tester.pump();
+
+      expect(find.byType(ReorderableListView), findsOneWidget);
+      expect(find.byType(GridView), findsNothing);
+      expect(configStore.lastSaved!.dashboardLayout, DashboardLayout.list);
+    });
+
+    // ---- Grid layout ----
+
+    testWidgets('grid renders compact cards without output preview', (
+      tester,
+    ) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [
+            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      // Adaptive square grid: max tile extent 280 with 1:1 aspect.
+      final delegate =
+          tester.widget<GridView>(find.byType(GridView)).gridDelegate
+              as SliverGridDelegateWithMaxCrossAxisExtent;
+      expect(delegate.maxCrossAxisExtent, 280);
+      expect(delegate.childAspectRatio, 1);
+
+      // One compact card per process with name, status dot, and controls.
+      expect(find.byType(ProcessGridCard), findsNWidgets(2));
+      expect(find.text('svc-a'), findsOneWidget);
+      expect(find.text('svc-b'), findsOneWidget);
+      expect(find.byType(StatusDot), findsNWidgets(2));
+      expect(find.byIcon(Icons.edit), findsNWidgets(2));
+      expect(find.byIcon(Icons.play_circle_outlined), findsNWidgets(2));
+
+      // No output preview in grid layout.
+      expect(find.text('No output yet'), findsNothing);
+    });
+
+    testWidgets('grid card shows WebUI copy button when URL detected', (
+      tester,
+    ) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      processManager.emitWebUi('svc-a', Uri.parse('http://127.0.0.1:8080'));
+      await tester.pump();
+
+      expect(find.byIcon(Icons.content_copy), findsOneWidget);
+    });
+
+    testWidgets('tapping grid card opens detail page', (tester) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      await tester.tap(find.text('svc-a'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // On the detail page: 'No output yet' appears only on the detail
+      // body, since grid cards have no output preview.
+      expect(find.text('No output yet'), findsOneWidget);
+      expect(find.widgetWithText(AppBar, 'svc-a'), findsOneWidget);
+    });
+
+    testWidgets('grid card toggle button starts the process', (tester) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [
+            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.play_circle_outlined).first);
+      await tester.pump();
+
+      expect(processManager.toggled, ['svc-a']);
+    });
+
+    testWidgets('opens in grid layout when config stores grid', (tester) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      expect(find.byType(GridView), findsOneWidget);
+      expect(find.byType(ReorderableListView), findsNothing);
+      expect(find.byTooltip('Switch to list view'), findsOneWidget);
+    });
+
+    testWidgets('toggling layout preserves other globals', (tester) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          outputRefreshMs: 300,
+          outputHistoryLimit: 500,
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      await tester.tap(find.byTooltip('Switch to grid view'));
+      await tester.pump();
+
+      final saved = configStore.lastSaved;
+      expect(saved, isNotNull);
+      expect(saved!.dashboardLayout, DashboardLayout.grid);
+      expect(saved.outputRefreshMs, 300);
+      expect(saved.outputHistoryLimit, 500);
+      expect(saved.processes.map((p) => p.name), ['svc-a']);
     });
 
     testWidgets('toggle button still works on cards', (tester) async {
