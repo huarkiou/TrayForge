@@ -87,25 +87,15 @@ class ProcessManager {
   /// [AppConfig] + [ProcessConfig] to the process's [ProcessController].
   Future<void> start(String name) async {
     final controller = _controller(name);
-
-    final config = _configStore.load();
-    if (config == null) {
-      controller.pushSystemMessage('Cannot start: no configuration loaded');
-      return;
-    }
-
-    final procConfig = config.processes.cast<ProcessConfig?>().firstWhere(
-      (p) => p!.name == name,
-      orElse: () => null,
-    );
-    if (procConfig == null) {
+    final resolved = _resolveConfigFor(name);
+    if (resolved == null) {
       controller.pushSystemMessage(
         'Cannot start: process "$name" not found in config',
       );
       return;
     }
 
-    await controller.start(config, procConfig);
+    await controller.start(resolved.config, resolved.procConfig);
   }
 
   /// Stops the process named [name].
@@ -116,6 +106,25 @@ class ProcessManager {
     final controller = _controllers[name];
     if (controller == null) return;
     await controller.stop();
+  }
+
+  /// Toggles the process named [name]: stops if active (`running` |
+  /// `starting`), starts if terminal (`stopped` | `crashed` | `cooldown`).
+  ///
+  /// Resolves the config from [ConfigStore] once (like [start]) and passes
+  /// it to the controller, which owns the start/stop decision. Toggle
+  /// during `starting` honours the pending-stop from ticket #3.
+  Future<void> toggle(String name) async {
+    final controller = _controller(name);
+    final resolved = _resolveConfigFor(name);
+    if (resolved == null) {
+      controller.pushSystemMessage(
+        'Cannot toggle: process "$name" not found in config',
+      );
+      return;
+    }
+
+    await controller.toggle(resolved.config, resolved.procConfig);
   }
 
   /// Cooldown duration between crash restarts.
@@ -204,6 +213,24 @@ class ProcessManager {
         cooldownDuration: cooldownDuration,
       ),
     );
+  }
+
+  /// Loads the config and resolves the [ProcessConfig] for [name].
+  ///
+  /// Returns `null` when no configuration is loaded or [name] is not
+  /// configured — the caller reports the failure. Shared by [start] and
+  /// [toggle] so the config is read exactly once per call.
+  ({AppConfig config, ProcessConfig procConfig})? _resolveConfigFor(
+    String name,
+  ) {
+    final config = _configStore.load();
+    if (config == null) return null;
+    final procConfig = config.processes.cast<ProcessConfig?>().firstWhere(
+      (p) => p!.name == name,
+      orElse: () => null,
+    );
+    if (procConfig == null) return null;
+    return (config: config, procConfig: procConfig);
   }
 
   // ---------------------------------------------------------------------------

@@ -10,8 +10,9 @@ import 'package:trayforge/services/process_manager.dart';
 ///
 /// Mirrors [ProcState] from [ProcessManager], accumulates output lines
 /// bounded by [outputHistoryLimit], tracks WebUI URL detection via a
-/// per-process pipeline stream, and exposes an optimistic toggle for
-/// immediate button feedback.
+/// per-process pipeline stream, and exposes a toggle that shows a spinner
+/// while the manager works. The start/stop decision itself lives in
+/// `ProcessController.toggle` — not here.
 class ProcessViewModel extends ChangeNotifier {
   final String name;
   final ProcessManager _processManager;
@@ -22,9 +23,9 @@ class ProcessViewModel extends ChangeNotifier {
   final List<String> _outputLines = [];
   Uri? _webuiUrl;
 
-  /// When non-null, the toggle button is awaiting confirmation from
-  /// [ProcessManager]. The UI shows a spinner instead of the action button.
-  ProcState? _optimisticState;
+  /// True while a toggle is awaiting confirmation from [ProcessManager].
+  /// The UI shows a spinner instead of the action button.
+  bool _transitioning = false;
 
   StreamSubscription<ProcState>? _stateSub;
   StreamSubscription<String>? _outputSub;
@@ -43,8 +44,8 @@ class ProcessViewModel extends ChangeNotifier {
     _webuiSub = processManager.webUiStream(name).listen(_onWebUi);
   }
 
-  /// Current process state, or the optimistic state if a toggle is in flight.
-  ProcState get state => _optimisticState ?? _state;
+  /// Current process state, mirrored from [ProcessManager].
+  ProcState get state => _state;
 
   /// Accumulated output lines, bounded by [_outputHistoryLimit].
   List<String> get outputLines => List.unmodifiable(_outputLines);
@@ -53,35 +54,29 @@ class ProcessViewModel extends ChangeNotifier {
   Uri? get webuiUrl => _webuiUrl;
 
   /// Whether the toggle is awaiting confirmation (spinner state).
-  bool get isTransitioning => _optimisticState != null;
+  bool get isTransitioning => _transitioning;
 
-  /// Toggles the process: starts if stopped/crashed/cooldown, stops if running.
+  /// Toggles the process via [ProcessManager].
   ///
-  /// Immediately sets an optimistic state so the UI shows a spinner, then
-  /// delegates to [ProcessManager]. The real state is restored when the
-  /// manager's state stream emits the next transition.
+  /// The start/stop decision lives in `ProcessController.toggle` — this
+  /// viewmodel only shows a spinner while the manager works and ignores
+  /// re-entry. The real state is restored when the manager's state stream
+  /// emits the next transition.
   void toggle() {
     if (isTransitioning) return;
-
-    if (_state == ProcState.running) {
-      _optimisticState = ProcState.stopping;
-      notifyListeners();
-      _processManager.stop(name);
-    } else if (_state.isTerminal) {
-      _optimisticState = ProcState.starting;
-      notifyListeners();
-      _processManager.start(name);
-    }
+    _transitioning = true;
+    notifyListeners();
+    _processManager.toggle(name);
   }
 
   void _onState(ProcState state) {
     _state = state;
-    // Only clear the optimistic state when the transition is complete —
+    // Only clear the transitioning flag when the transition is complete —
     // i.e. on terminal states (running, stopped, crashed, cooldown), not
     // on intermediate states (starting, stopping). This ensures the spinner
     // stays visible until the ProcessManager confirms success or failure.
     if (state.isTerminal) {
-      _optimisticState = null;
+      _transitioning = false;
     }
     // Clear WebUI URL when process is no longer running.
     if (state != ProcState.running) {

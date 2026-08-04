@@ -183,12 +183,9 @@ class TrayViewModel extends ChangeNotifier {
   }
 
   void _toggleProcess(String name) {
-    final state = _states[name] ?? ProcState.stopped;
-    if (state.isActive) {
-      _processManager.stop(name);
-    } else {
-      _processManager.start(name);
-    }
+    // The start/stop decision lives in ProcessController.toggle — the
+    // tray only routes the click through the facade.
+    _processManager.toggle(name);
   }
 
   /// Reloads settings from disk and applies them (Path C from spec).

@@ -451,6 +451,142 @@ void main() {
       );
     });
 
+    // ---- toggle (centralized start/stop decision) ----
+
+    group('toggle', () {
+      test('starts a stopped process', () async {
+        mockRunner.nextHandle = MockProcessHandle(pid: 900);
+
+        final states = <ProcState>[];
+        final sub = pm.stateStream('test-svc').listen(states.add);
+
+        expect(pm.getState('test-svc'), ProcState.stopped);
+        await pm.toggle('test-svc');
+
+        expect(mockRunner.starts.length, 1);
+        expect(pm.getState('test-svc'), ProcState.running);
+        expect(states, contains(ProcState.starting));
+        await sub.cancel();
+      });
+
+      test('stops a running process', () async {
+        final handle = MockProcessHandle(pid: 901);
+        mockRunner.nextHandle = handle;
+        await pm.start('test-svc');
+        expect(pm.getState('test-svc'), ProcState.running);
+
+        await pm.toggle('test-svc');
+
+        expect(pm.getState('test-svc'), ProcState.stopped);
+        expect(mockRunner.killedPids, contains(handle.pid));
+        // No new launch from the toggle.
+        expect(mockRunner.starts.length, 1);
+      });
+
+      test('toggle during starting stops the launch (pending-stop)', () async {
+        final handle = MockProcessHandle(pid: 902);
+        mockRunner.nextHandle = handle;
+
+        final states = <ProcState>[];
+        final sub = pm.stateStream('test-svc').listen(states.add);
+
+        // First toggle starts the launch; it suspends at its first await
+        // while the handle is still null, so the second toggle hits the
+        // `starting` → pending-stop path deterministically.
+        final toggleFuture = pm.toggle('test-svc');
+        await pm.toggle('test-svc');
+        await toggleFuture;
+
+        expect(states.contains(ProcState.running), isFalse);
+        expect(pm.getState('test-svc'), ProcState.stopped);
+        expect(mockRunner.killedPids, contains(handle.pid));
+        expect(File('${tmpDir.path}/pids/test-svc.pid').existsSync(), isFalse);
+        await sub.cancel();
+      });
+
+      test('starts a crashed process', () async {
+        final handle1 = MockProcessHandle(pid: 903);
+        mockRunner.nextHandle = handle1;
+        await pm.start('test-svc');
+
+        // Crash with no maxRestarts → crashed (terminal).
+        handle1.closeOutputs();
+        handle1.completeExit(1);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(pm.getState('test-svc'), ProcState.crashed);
+
+        final handle2 = MockProcessHandle(pid: 904);
+        mockRunner.nextHandle = handle2;
+        await pm.toggle('test-svc');
+
+        expect(pm.getState('test-svc'), ProcState.running);
+        expect(mockRunner.starts.length, 2);
+      });
+
+      test(
+        'starts a process in cooldown and cancels the scheduled restart',
+        () async {
+          writeConfig(tmpDir, _testConfig(maxRestarts: 3));
+          final fresh = ProcessManager(
+            configStore: configStore,
+            processRunner: mockRunner,
+            dataDir: tmpDir.path,
+            cooldownDuration: const Duration(milliseconds: 100),
+          );
+
+          // Start, crash, restart once, then crash again into cooldown.
+          final handle1 = MockProcessHandle(pid: 906);
+          mockRunner.nextHandle = handle1;
+          await fresh.start('test-svc');
+
+          final handle2 = MockProcessHandle(pid: 907);
+          mockRunner.nextHandle = handle2;
+          handle1.closeOutputs();
+          handle1.completeExit(1);
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          expect(mockRunner.starts.length, 2);
+          expect(fresh.getState('test-svc'), ProcState.running);
+
+          // Crash again — cooldown with a scheduled restart timer.
+          handle2.closeOutputs();
+          handle2.completeExit(1);
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          expect(fresh.getState('test-svc'), ProcState.cooldown);
+
+          // Toggle from cooldown (terminal): manual start supersedes the
+          // scheduled auto-restart.
+          final handle3 = MockProcessHandle(pid: 908);
+          mockRunner.nextHandle = handle3;
+          await fresh.toggle('test-svc');
+          expect(fresh.getState('test-svc'), ProcState.running);
+          expect(mockRunner.starts.length, 3);
+
+          // Wait past the cooldown window: the stale timer must NOT launch a
+          // second instance.
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+          expect(mockRunner.starts.length, 3);
+          expect(fresh.getState('test-svc'), ProcState.running);
+
+          fresh.dispose();
+        },
+      );
+
+      test('toggle during stopping is a no-op', () async {
+        mockRunner.nextHandle = MockProcessHandle(pid: 905);
+        await pm.start('test-svc');
+
+        // stop() sets `stopping` synchronously and suspends at killPid.
+        final stopFuture = pm.stop('test-svc');
+        expect(pm.getState('test-svc'), ProcState.stopping);
+
+        await pm.toggle('test-svc');
+
+        await stopFuture;
+        expect(pm.getState('test-svc'), ProcState.stopped);
+        expect(mockRunner.starts.length, 1);
+      });
+    });
+
     // ---- safe dispose (closed-guards) ----
 
     group('safe dispose', () {

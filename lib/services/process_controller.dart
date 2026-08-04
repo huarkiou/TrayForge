@@ -131,6 +131,11 @@ class ProcessController {
     _setState(ProcState.starting);
     _pendingStop = false;
 
+    // Supersede any scheduled cooldown restart: a fresh start must not be
+    // followed by the stale timer launching a second instance. No-op on the
+    // auto-restart path (the timer callback has already cleared `_restart`).
+    _restart?.cooldownTimer?.cancel();
+
     try {
       final args = Shlex.split(procConfig.cmd);
       if (args.isEmpty) {
@@ -271,6 +276,21 @@ class ProcessController {
     } on Exception catch (e) {
       _pushSystemMessage('Start failed: $e');
       _setState(ProcState.stopped);
+    }
+  }
+
+  /// Toggles the process: active (`running` | `starting`) → stop;
+  /// terminal (`stopped` | `crashed` | `cooldown`) → start.
+  ///
+  /// The start/stop decision lives here and nowhere else — callers (the
+  /// [ProcessManager] facade and the viewmodels) never re-decide. A toggle
+  /// while `stopping` is a no-op (neither active nor terminal).
+  Future<void> toggle(AppConfig appConfig, ProcessConfig procConfig) async {
+    if (_disposed) return;
+    if (_state.isActive) {
+      await stop();
+    } else if (_state.isTerminal) {
+      await start(appConfig, procConfig);
     }
   }
 

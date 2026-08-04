@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -26,6 +27,67 @@ AppConfig _testConfig({
       ),
     ],
   );
+}
+
+// ---------------------------------------------------------------------------
+// Recording fake — proves the viewmodel routes through manager.toggle
+// ---------------------------------------------------------------------------
+
+/// A ProcessManager fake that records which lifecycle method was called.
+///
+/// The VM must call `toggle(name)` — never `start`/`stop` directly — so the
+/// start/stop decision stays in ProcessController.
+class _RecordingManager extends Fake implements ProcessManager {
+  int toggleCalls = 0;
+  int startCalls = 0;
+  int stopCalls = 0;
+  ProcState state = ProcState.stopped;
+
+  final Map<String, StreamController<ProcState>> _stateControllers = {};
+  final Map<String, StreamController<String>> _outputControllers = {};
+  final Map<String, StreamController<Uri>> _webuiControllers = {};
+
+  @override
+  Stream<ProcState> stateStream(String name) {
+    return _stateControllers
+        .putIfAbsent(
+          name,
+          () => StreamController<ProcState>.broadcast(sync: true),
+        )
+        .stream;
+  }
+
+  @override
+  Stream<String> outputStream(String name) {
+    return _outputControllers
+        .putIfAbsent(name, () => StreamController<String>.broadcast(sync: true))
+        .stream;
+  }
+
+  @override
+  Stream<Uri> webUiStream(String name) {
+    return _webuiControllers
+        .putIfAbsent(name, () => StreamController<Uri>.broadcast(sync: true))
+        .stream;
+  }
+
+  @override
+  ProcState getState(String name) => state;
+
+  @override
+  Future<void> toggle(String name) async {
+    toggleCalls++;
+  }
+
+  @override
+  Future<void> start(String name) async {
+    startCalls++;
+  }
+
+  @override
+  Future<void> stop(String name) async {
+    stopCalls++;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -285,6 +347,76 @@ void main() {
       // Another toggle while already starting should be a no-op.
       vm.toggle();
       expect(vm.state, ProcState.starting);
+    });
+
+    // ---- Toggle routing (decision lives in the controller) ----
+
+    test('toggle routes through ProcessManager.toggle, never start/stop', () {
+      final recording = _RecordingManager()..state = ProcState.stopped;
+      final vm = ProcessViewModel(
+        name: 'test-svc',
+        processManager: recording,
+        outputHistoryLimit: 100,
+      );
+
+      vm.toggle();
+
+      expect(recording.toggleCalls, 1);
+      expect(recording.startCalls, 0);
+      expect(recording.stopCalls, 0);
+    });
+
+    test('toggle from running also routes through toggle only', () {
+      final recording = _RecordingManager()..state = ProcState.running;
+      final vm = ProcessViewModel(
+        name: 'test-svc',
+        processManager: recording,
+        outputHistoryLimit: 100,
+      );
+
+      vm.toggle();
+
+      expect(recording.toggleCalls, 1);
+      expect(recording.startCalls, 0);
+      expect(recording.stopCalls, 0);
+    });
+
+    test('toggle while transitioning is guarded (single manager call)', () {
+      final recording = _RecordingManager()..state = ProcState.stopped;
+      final vm = ProcessViewModel(
+        name: 'test-svc',
+        processManager: recording,
+        outputHistoryLimit: 100,
+      );
+
+      vm.toggle();
+      vm.toggle();
+      vm.toggle();
+
+      expect(recording.toggleCalls, 1);
+      expect(vm.isTransitioning, isTrue);
+    });
+
+    test('isTransitioning clears once a terminal state arrives', () async {
+      writeConfig(tmpDir, _testConfig());
+      mockRunner.nextHandle = MockProcessHandle(pid: 45);
+      manager = createManager();
+
+      final vm = ProcessViewModel(
+        name: 'test-svc',
+        processManager: manager,
+        outputHistoryLimit: 100,
+      );
+
+      vm.toggle();
+      // Intermediate state keeps the spinner visible.
+      expect(vm.state, ProcState.starting);
+      expect(vm.isTransitioning, isTrue);
+
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(vm.state, ProcState.running);
+      expect(vm.isTransitioning, isFalse);
     });
 
     // ---- dispose ----

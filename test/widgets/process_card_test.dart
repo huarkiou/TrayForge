@@ -70,6 +70,16 @@ class _FakeProcessManager extends Fake implements ProcessManager {
     await Future<void>.delayed(const Duration(milliseconds: 50));
     setState(name, ProcState.stopped);
   }
+
+  @override
+  Future<void> toggle(String name) async {
+    final state = _states[name] ?? ProcState.stopped;
+    if (state.isActive) {
+      await stop(name);
+    } else {
+      await start(name);
+    }
+  }
 }
 
 /// A fake ProcessManager whose start/stop never resolve, so the
@@ -114,6 +124,11 @@ class _NoResolveFakeManager extends Fake implements ProcessManager {
 
   @override
   Future<void> stop(String name) async {
+    await Completer<void>().future;
+  }
+
+  @override
+  Future<void> toggle(String name) async {
     await Completer<void>().future;
   }
 }
