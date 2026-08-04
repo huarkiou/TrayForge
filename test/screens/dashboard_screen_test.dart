@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/screens/dashboard_screen.dart';
 import 'package:trayforge/services/autostart.dart';
-import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
@@ -18,13 +17,15 @@ import '../helpers/recording_config_store.dart';
 /// Long-presses at [start], then drags to [end] and releases.
 ///
 /// Simulates long-press reorder in either layout: hold past the
-/// long-press threshold, then move, then release.
+/// long-press threshold, then move, then release. [kind] selects the
+/// simulated pointer device (touch by default; mouse for desktop input).
 Future<void> longPressDrag(
   WidgetTester tester,
   Offset start,
-  Offset end,
-) async {
-  final gesture = await tester.startGesture(start);
+  Offset end, {
+  PointerDeviceKind kind = PointerDeviceKind.touch,
+}) async {
+  final gesture = await tester.startGesture(start, kind: kind);
   await tester.pump(kLongPressTimeout);
   // Small initial move so the drag actually starts.
   await gesture.moveBy(const Offset(0, 20));
@@ -33,6 +34,47 @@ Future<void> longPressDrag(
   await tester.pumpAndSettle();
   await gesture.up();
   await tester.pumpAndSettle();
+}
+
+/// Pumps the Dashboard with fresh viewmodels backed by a recording config
+/// store, returning handles for assertions.
+///
+/// [configCorrupted] forwards to [DashboardViewModel]; [withSettings] also
+/// adds a [SettingsViewModel] (and the AppBar buttons that come with it).
+Future<
+  ({
+    RecordingConfigStore store,
+    _FakeProcessManager pm,
+    DashboardViewModel dm,
+    SettingsViewModel? sm,
+  })
+>
+pumpDashboard(
+  WidgetTester tester, {
+  required AppConfig config,
+  bool withSettings = true,
+  bool configCorrupted = false,
+}) async {
+  final store = RecordingConfigStore(config);
+  final pm = _FakeProcessManager();
+  final dm = DashboardViewModel(
+    configStore: store,
+    processManager: pm,
+    configCorrupted: configCorrupted,
+  );
+  final sm = withSettings
+      ? SettingsViewModel(
+          configStore: store,
+          processManager: pm,
+          autostart: Autostart(),
+        )
+      : null;
+  await tester.pumpWidget(
+    MaterialApp(
+      home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+    ),
+  );
+  return (store: store, pm: pm, dm: dm, sm: sm);
 }
 
 /// A minimal fake that satisfies the [ProcessManager] interface for
@@ -80,16 +122,6 @@ class _FakeProcessManager extends Fake implements ProcessManager {
   }
 }
 
-/// A fake [ConfigStore] that returns a fixed config.
-class _FakeConfigStore extends Fake implements ConfigStore {
-  final AppConfig _config;
-
-  _FakeConfigStore(this._config);
-
-  @override
-  AppConfig? load() => _config;
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -99,13 +131,10 @@ void main() {
     // ---- Welcome screen ----
 
     testWidgets('shows welcome screen when no processes', (tester) async {
-      final vm = DashboardViewModel(
-        configStore: _FakeConfigStore(AppConfig(processes: [])),
-        processManager: _FakeProcessManager(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(home: DashboardScreen(viewModel: vm)),
+      await pumpDashboard(
+        tester,
+        config: AppConfig(processes: []),
+        withSettings: false,
       );
 
       expect(find.text('No processes configured'), findsOneWidget);
@@ -115,22 +144,7 @@ void main() {
     testWidgets('welcome screen "Add Process" button navigates to settings', (
       tester,
     ) async {
-      final configStore = _FakeConfigStore(AppConfig(processes: []));
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: _FakeProcessManager(),
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: _FakeProcessManager(),
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
-        ),
-      );
+      await pumpDashboard(tester, config: AppConfig(processes: []));
 
       await tester.tap(find.text('Add Process'));
       await tester.pump();
@@ -143,20 +157,15 @@ void main() {
     // ---- Dashboard with cards ----
 
     testWidgets('shows process cards when processes exist', (tester) async {
-      final vm = DashboardViewModel(
-        configStore: _FakeConfigStore(
-          AppConfig(
-            processes: [
-              const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-              const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
-            ],
-          ),
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
+          processes: [
+            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
         ),
-        processManager: _FakeProcessManager(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(home: DashboardScreen(viewModel: vm)),
+        withSettings: false,
       );
 
       expect(find.text('svc-a'), findsOneWidget);
@@ -167,17 +176,12 @@ void main() {
     // ---- Navigation to detail page ----
 
     testWidgets('tapping a card navigates to detail page', (tester) async {
-      final vm = DashboardViewModel(
-        configStore: _FakeConfigStore(
-          AppConfig(
-            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-          ),
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
-        processManager: _FakeProcessManager(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(home: DashboardScreen(viewModel: vm)),
+        withSettings: false,
       );
 
       await tester.tap(find.text('svc-a'));
@@ -194,14 +198,11 @@ void main() {
     // ---- Corrupted config dialog ----
 
     testWidgets('shows alert dialog when config is corrupted', (tester) async {
-      final vm = DashboardViewModel(
-        configStore: _FakeConfigStore(AppConfig(processes: [])),
-        processManager: _FakeProcessManager(),
+      await pumpDashboard(
+        tester,
+        config: AppConfig(processes: []),
+        withSettings: false,
         configCorrupted: true,
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(home: DashboardScreen(viewModel: vm)),
       );
 
       // Dialog should appear after post-frame callback.
@@ -213,14 +214,11 @@ void main() {
     });
 
     testWidgets('dismissing corrupted dialog clears flag', (tester) async {
-      final vm = DashboardViewModel(
-        configStore: _FakeConfigStore(AppConfig(processes: [])),
-        processManager: _FakeProcessManager(),
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(processes: []),
+        withSettings: false,
         configCorrupted: true,
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(home: DashboardScreen(viewModel: vm)),
       );
 
       await tester.pump();
@@ -231,7 +229,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(vm.configCorrupted, false);
+      expect(h.dm.configCorrupted, false);
       expect(find.text('Configuration Error'), findsNothing);
     });
 
@@ -240,19 +238,12 @@ void main() {
     testWidgets('switches to welcome screen when config becomes empty', (
       tester,
     ) async {
-      final configStore = _FakeConfigStore(
-        AppConfig(
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
           processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
-      );
-
-      final vm = DashboardViewModel(
-        configStore: configStore,
-        processManager: _FakeProcessManager(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(home: DashboardScreen(viewModel: vm)),
+        withSettings: false,
       );
 
       expect(find.text('svc-a'), findsOneWidget);
@@ -268,21 +259,7 @@ void main() {
     testWidgets('shows + button in AppBar when settingsViewModel is provided', (
       tester,
     ) async {
-      final dm = DashboardViewModel(
-        configStore: _FakeConfigStore(AppConfig(processes: [])),
-        processManager: _FakeProcessManager(),
-      );
-      final sm = SettingsViewModel(
-        configStore: _FakeConfigStore(AppConfig(processes: [])),
-        processManager: _FakeProcessManager(),
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
-        ),
-      );
+      await pumpDashboard(tester, config: AppConfig(processes: []));
 
       expect(find.byTooltip('Add process'), findsOneWidget);
     });
@@ -290,13 +267,10 @@ void main() {
     testWidgets('does not show + button when settingsViewModel is null', (
       tester,
     ) async {
-      final dm = DashboardViewModel(
-        configStore: _FakeConfigStore(AppConfig(processes: [])),
-        processManager: _FakeProcessManager(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(home: DashboardScreen(viewModel: dm)),
+      await pumpDashboard(
+        tester,
+        config: AppConfig(processes: []),
+        withSettings: false,
       );
 
       expect(find.byTooltip('Add process'), findsNothing);
@@ -305,21 +279,7 @@ void main() {
     testWidgets('+ button navigates to ProcessEditPage in add mode', (
       tester,
     ) async {
-      final dm = DashboardViewModel(
-        configStore: _FakeConfigStore(AppConfig(processes: [])),
-        processManager: _FakeProcessManager(),
-      );
-      final sm = SettingsViewModel(
-        configStore: _FakeConfigStore(AppConfig(processes: [])),
-        processManager: _FakeProcessManager(),
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
-        ),
-      );
+      await pumpDashboard(tester, config: AppConfig(processes: []));
 
       await tester.tap(find.byTooltip('Add process'));
       await tester.pump();
@@ -331,27 +291,10 @@ void main() {
     // ---- Edit icon on cards ----
 
     testWidgets('shows edit icon on process cards', (tester) async {
-      final dm = DashboardViewModel(
-        configStore: _FakeConfigStore(
-          AppConfig(
-            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-          ),
-        ),
-        processManager: _FakeProcessManager(),
-      );
-      final sm = SettingsViewModel(
-        configStore: _FakeConfigStore(
-          AppConfig(
-            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-          ),
-        ),
-        processManager: _FakeProcessManager(),
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -361,27 +304,10 @@ void main() {
     testWidgets('tapping edit icon navigates to ProcessEditPage', (
       tester,
     ) async {
-      final dm = DashboardViewModel(
-        configStore: _FakeConfigStore(
-          AppConfig(
-            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-          ),
-        ),
-        processManager: _FakeProcessManager(),
-      );
-      final sm = SettingsViewModel(
-        configStore: _FakeConfigStore(
-          AppConfig(
-            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-          ),
-        ),
-        processManager: _FakeProcessManager(),
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -395,33 +321,13 @@ void main() {
     // ---- Long-press reorder ----
 
     testWidgets('does not render drag handle icons on cards', (tester) async {
-      final dm = DashboardViewModel(
-        configStore: _FakeConfigStore(
-          AppConfig(
-            processes: [
-              const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-              const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
-            ],
-          ),
-        ),
-        processManager: _FakeProcessManager(),
-      );
-      final sm = SettingsViewModel(
-        configStore: _FakeConfigStore(
-          AppConfig(
-            processes: [
-              const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-              const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
-            ],
-          ),
-        ),
-        processManager: _FakeProcessManager(),
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
+          processes: [
+            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
         ),
       );
 
@@ -429,28 +335,13 @@ void main() {
     });
 
     testWidgets('long-press drag reorders cards and persists', (tester) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
           processes: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
-        ),
-      );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
         ),
       );
 
@@ -470,31 +361,48 @@ void main() {
       );
 
       // And the new order plus the carried layout persisted.
-      final saved = configStore.lastSaved;
+      final saved = h.store.lastSaved;
       expect(saved, isNotNull);
       expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
       expect(saved.dashboardLayout, DashboardLayout.list);
     });
 
+    testWidgets('mouse long-press drag reorders list cards and persists', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
+          processes: [
+            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+
+      // Same long-press reorder with a mouse pointer: the delayed
+      // recognizer must accept the primary mouse button.
+      await longPressDrag(
+        tester,
+        tester.getCenter(find.text('svc-a')),
+        tester.getCenter(find.text('svc-b')) + const Offset(0, 150),
+        kind: PointerDeviceKind.mouse,
+      );
+
+      expect(
+        tester.getTopLeft(find.text('svc-a')).dy,
+        greaterThan(tester.getTopLeft(find.text('svc-b')).dy),
+      );
+
+      final saved = h.store.lastSaved;
+      expect(saved, isNotNull);
+      expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
+    });
+
     // ---- Layout toggle ----
 
     testWidgets('layout toggle hidden on welcome screen', (tester) async {
-      final configStore = _FakeConfigStore(AppConfig(processes: []));
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: _FakeProcessManager(),
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: _FakeProcessManager(),
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
-        ),
-      );
+      await pumpDashboard(tester, config: AppConfig(processes: []));
 
       expect(find.byTooltip('Switch to grid view'), findsNothing);
       expect(find.byTooltip('Switch to list view'), findsNothing);
@@ -503,17 +411,12 @@ void main() {
     testWidgets('layout toggle hidden without settingsViewModel', (
       tester,
     ) async {
-      final dm = DashboardViewModel(
-        configStore: _FakeConfigStore(
-          AppConfig(
-            processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-          ),
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
-        processManager: _FakeProcessManager(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(home: DashboardScreen(viewModel: dm)),
+        withSettings: false,
       );
 
       expect(find.byTooltip('Switch to grid view'), findsNothing);
@@ -523,25 +426,10 @@ void main() {
     testWidgets('layout toggle shown with processes, icon shows grid target', (
       tester,
     ) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
           processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-        ),
-      );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
         ),
       );
 
@@ -554,25 +442,10 @@ void main() {
     testWidgets('tapping layout toggle switches layout and persists', (
       tester,
     ) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
           processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-        ),
-      );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
         ),
       );
 
@@ -586,7 +459,7 @@ void main() {
       expect(find.byTooltip('Switch to list view'), findsOneWidget);
       expect(find.byIcon(Icons.view_list), findsOneWidget);
 
-      var saved = configStore.lastSaved;
+      var saved = h.store.lastSaved;
       expect(saved, isNotNull);
       expect(saved!.dashboardLayout, DashboardLayout.grid);
 
@@ -596,7 +469,7 @@ void main() {
 
       expect(find.byType(ReorderableListView), findsOneWidget);
       expect(find.byType(GridView), findsNothing);
-      expect(configStore.lastSaved!.dashboardLayout, DashboardLayout.list);
+      expect(h.store.lastSaved!.dashboardLayout, DashboardLayout.list);
     });
 
     // ---- Grid layout ----
@@ -604,29 +477,14 @@ void main() {
     testWidgets('long-press drag reorders grid cards and persists', (
       tester,
     ) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
           processes: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
-        ),
-      );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
         ),
       );
 
@@ -654,36 +512,56 @@ void main() {
       );
 
       // And the new order plus the carried layout persisted.
-      final saved = configStore.lastSaved;
+      final saved = h.store.lastSaved;
       expect(saved, isNotNull);
       expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
       expect(saved.dashboardLayout, DashboardLayout.grid);
     });
 
+    testWidgets('mouse long-press drag reorders grid cards and persists', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [
+            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Same long-press reorder with a mouse pointer (see the touch-kind
+      // test for the fade-in and drop-target rationale).
+      await longPressDrag(
+        tester,
+        tester.getCenter(find.text('svc-a')),
+        tester.getCenter(find.text('svc-b')) + const Offset(40, 0),
+        kind: PointerDeviceKind.mouse,
+      );
+
+      expect(
+        tester.getTopLeft(find.text('svc-a')).dx,
+        greaterThan(tester.getTopLeft(find.text('svc-b')).dx),
+      );
+
+      final saved = h.store.lastSaved;
+      expect(saved, isNotNull);
+      expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
+    });
+
     testWidgets('dragging near the grid edge auto-scrolls', (tester) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
           processes: [
             for (var i = 1; i <= 12; i++)
               ProcessConfig(name: 'svc-$i', cmd: 'svc-$i.exe'),
           ],
-        ),
-      );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
         ),
       );
       await tester.pumpAndSettle();
@@ -701,29 +579,14 @@ void main() {
     testWidgets('grid renders compact cards without output preview', (
       tester,
     ) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
           processes: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
-        ),
-      );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
         ),
       );
 
@@ -749,56 +612,62 @@ void main() {
     testWidgets('grid card shows WebUI copy button when URL detected', (
       tester,
     ) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
           processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
-        ),
-      );
-
-      processManager.emitWebUi('svc-a', Uri.parse('http://127.0.0.1:8080'));
+      h.pm.emitWebUi('svc-a', Uri.parse('http://127.0.0.1:8080'));
       await tester.pump();
 
       expect(find.byIcon(Icons.content_copy), findsOneWidget);
     });
 
-    testWidgets('tapping grid card opens detail page', (tester) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+    testWidgets('grid card copy button copies URL and shows snackbar', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
           processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
+
+      h.pm.emitWebUi('svc-a', Uri.parse('http://127.0.0.1:8080'));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.content_copy));
+      await tester.pump();
+
+      expect(find.text('URL copied'), findsOneWidget);
+    });
+
+    testWidgets('grid card edit icon opens the edit page', (tester) async {
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
       );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+      await tester.tap(find.byIcon(Icons.edit));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.widgetWithText(AppBar, 'Edit Process'), findsOneWidget);
+    });
+
+    testWidgets('tapping grid card opens detail page', (tester) async {
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -813,8 +682,9 @@ void main() {
     });
 
     testWidgets('grid card toggle button starts the process', (tester) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
           processes: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
@@ -822,50 +692,19 @@ void main() {
           ],
         ),
       );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
-        ),
-      );
 
       await tester.tap(find.byIcon(Icons.play_circle_outlined).first);
       await tester.pump();
 
-      expect(processManager.toggled, ['svc-a']);
+      expect(h.pm.toggled, ['svc-a']);
     });
 
     testWidgets('opens in grid layout when config stores grid', (tester) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      await pumpDashboard(
+        tester,
+        config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
           processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-        ),
-      );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
         ),
       );
 
@@ -875,34 +714,19 @@ void main() {
     });
 
     testWidgets('toggling layout preserves other globals', (tester) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
           outputRefreshMs: 300,
           outputHistoryLimit: 500,
           processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-        ),
-      );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
         ),
       );
 
       await tester.tap(find.byTooltip('Switch to grid view'));
       await tester.pump();
 
-      final saved = configStore.lastSaved;
+      final saved = h.store.lastSaved;
       expect(saved, isNotNull);
       expect(saved!.dashboardLayout, DashboardLayout.grid);
       expect(saved.outputRefreshMs, 300);
@@ -911,32 +735,17 @@ void main() {
     });
 
     testWidgets('toggle button still works on cards', (tester) async {
-      final configStore = RecordingConfigStore(
-        AppConfig(
+      final h = await pumpDashboard(
+        tester,
+        config: AppConfig(
           processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
-        ),
-      );
-      final processManager = _FakeProcessManager();
-      final dm = DashboardViewModel(
-        configStore: configStore,
-        processManager: processManager,
-      );
-      final sm = SettingsViewModel(
-        configStore: configStore,
-        processManager: processManager,
-        autostart: Autostart(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
         ),
       );
 
       await tester.tap(find.byIcon(Icons.play_circle_outlined));
       await tester.pump();
 
-      expect(processManager.toggled, ['svc-a']);
+      expect(h.pm.toggled, ['svc-a']);
     });
   });
 }
