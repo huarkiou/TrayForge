@@ -174,6 +174,15 @@ void main() {
         expect(content.contains('outputHistoryLimit'), isFalse);
       });
 
+      test('round-trips dashboard_layout through save and load', () {
+        store.save(AppConfig(dashboardLayout: DashboardLayout.grid));
+
+        final content = File('${tmpDir.path}/config.json').readAsStringSync();
+        expect(content, contains('"dashboard_layout": "grid"'));
+
+        expect(store.load()!.dashboardLayout, DashboardLayout.grid);
+      });
+
       test('creates data directory if it does not exist', () {
         final nested = '${tmpDir.path}/nested/sub';
         final nestedStore = ConfigStore(dataDir: nested, maxBackupBytes: 300);

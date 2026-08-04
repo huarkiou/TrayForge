@@ -21,6 +21,7 @@ class SettingsViewModel extends ChangeNotifier {
   List<ProcessConfig> _processes = [];
   int _outputRefreshMs = 500;
   int _outputHistoryLimit = 1000;
+  DashboardLayout _dashboardLayout = DashboardLayout.list;
   StreamSubscription<void>? _configSub;
 
   SettingsViewModel({
@@ -49,6 +50,9 @@ class SettingsViewModel extends ChangeNotifier {
   /// Maximum lines retained per process output buffer.
   int get outputHistoryLimit => _outputHistoryLimit;
 
+  /// Dashboard layout mode.
+  DashboardLayout get dashboardLayout => _dashboardLayout;
+
   /// Updates [outputRefreshMs] and persists.
   void setOutputRefreshMs(int value) {
     _outputRefreshMs = value;
@@ -58,6 +62,12 @@ class SettingsViewModel extends ChangeNotifier {
   /// Updates [outputHistoryLimit] and persists.
   void setOutputHistoryLimit(int value) {
     _outputHistoryLimit = value;
+    _saveGlobals();
+  }
+
+  /// Updates [dashboardLayout] and persists.
+  void setDashboardLayout(DashboardLayout value) {
+    _dashboardLayout = value;
     _saveGlobals();
   }
 
@@ -147,10 +157,12 @@ class SettingsViewModel extends ChangeNotifier {
     _processes = config?.processes.toList() ?? [];
     _outputRefreshMs = config?.outputRefreshMs ?? 500;
     _outputHistoryLimit = config?.outputHistoryLimit ?? 1000;
+    _dashboardLayout = config?.dashboardLayout ?? DashboardLayout.list;
     notifyListeners();
   }
 
-  /// Persists only global settings (refresh interval, history limit).
+  /// Persists only global settings (refresh interval, history limit,
+  /// dashboard layout).
   ///
   /// Writes to disk and notifies listeners. Does **not** call
   /// [ProcessManager.reloadConfig] — globals take effect on next process
@@ -160,6 +172,7 @@ class SettingsViewModel extends ChangeNotifier {
     final newConfig = AppConfig(
       outputRefreshMs: _outputRefreshMs,
       outputHistoryLimit: _outputHistoryLimit,
+      dashboardLayout: _dashboardLayout,
       processes: List<ProcessConfig>.from(config.processes),
     );
     _configStore.save(newConfig);
@@ -179,6 +192,7 @@ class SettingsViewModel extends ChangeNotifier {
     final newConfig = AppConfig(
       outputHistoryLimit: config.outputHistoryLimit,
       outputRefreshMs: config.outputRefreshMs,
+      dashboardLayout: config.dashboardLayout,
       processes: _processes,
     );
     _configStore.save(newConfig);

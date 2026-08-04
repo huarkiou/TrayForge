@@ -15,8 +15,8 @@ are removed (per ADR 003 — the schema is TrayForge-owned).
 
 **Status:** ready-for-agent
 
-- [ ] `dashboard_layout` round-trips both values in the config JSON; missing
+- [x] `dashboard_layout` round-trips both values in the config JSON; missing
       or invalid values load as `list` (foundation tests)
-- [ ] Setting the layout persists to config.json; loading the saved config
+- [x] Setting the layout persists to config.json; loading the saved config
       yields the stored layout value
-- [ ] Stale "Python compatible" mentions removed
+- [x] Stale "Python compatible" mentions removed

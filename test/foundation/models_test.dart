@@ -168,6 +168,7 @@ void main() {
       final config = AppConfig();
       expect(config.outputHistoryLimit, 1000);
       expect(config.outputRefreshMs, 500);
+      expect(config.dashboardLayout, DashboardLayout.list);
       expect(config.processes, isEmpty);
     });
 
@@ -176,10 +177,12 @@ void main() {
       final config = AppConfig(
         outputHistoryLimit: 500,
         outputRefreshMs: 50,
+        dashboardLayout: DashboardLayout.grid,
         processes: processes,
       );
       expect(config.outputHistoryLimit, 500);
       expect(config.outputRefreshMs, 50);
+      expect(config.dashboardLayout, DashboardLayout.grid);
       expect(config.processes, processes);
     });
 
@@ -209,11 +212,13 @@ void main() {
         final config = AppConfig(
           outputHistoryLimit: 200,
           outputRefreshMs: 50,
+          dashboardLayout: DashboardLayout.grid,
           processes: [ProcessConfig(name: 'p1', cmd: 'c1')],
         );
         final json = config.toJson();
         expect(json['output_history_limit'], 200);
         expect(json['output_refresh_ms'], 50);
+        expect(json['dashboard_layout'], 'grid');
         expect(json['processes'], isA<List>());
         expect((json['processes'] as List).length, 1);
       });
@@ -225,7 +230,27 @@ void main() {
         final config = AppConfig.fromJson(json);
         expect(config.outputHistoryLimit, 1000);
         expect(config.outputRefreshMs, 500);
+        expect(config.dashboardLayout, DashboardLayout.list);
         expect(config.processes, isEmpty);
+      });
+
+      test('round-trips dashboard_layout list and grid', () {
+        for (final layout in DashboardLayout.values) {
+          final config = AppConfig.fromJson(
+            AppConfig(dashboardLayout: layout).toJson(),
+          );
+          expect(config.dashboardLayout, layout);
+        }
+      });
+
+      test('defaults to list for unknown dashboard_layout value', () {
+        final json = {'dashboard_layout': 'bogus'};
+        expect(AppConfig.fromJson(json).dashboardLayout, DashboardLayout.list);
+      });
+
+      test('defaults to list for non-string dashboard_layout value', () {
+        final json = {'dashboard_layout': 42};
+        expect(AppConfig.fromJson(json).dashboardLayout, DashboardLayout.list);
       });
 
       test('deserializes full config', () {

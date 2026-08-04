@@ -8,8 +8,7 @@ import 'package:trayforge/foundation/models.dart';
 /// Configuration persistence layer.
 ///
 /// Reads and writes [AppConfig] to `config.json` under [dataDir],
-/// with automatic backup and validation. Compatible with Python
-/// trayforge JSON schema.
+/// with automatic backup and validation.
 ///
 /// ConfigStore is a pure persistence module — it does not broadcast
 /// changes. Callers (typically [ProcessManager]) are responsible for

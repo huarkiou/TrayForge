@@ -14,6 +14,9 @@ extension ProcStateX on ProcState {
       this != ProcState.starting && this != ProcState.stopping;
 }
 
+/// The layout mode of the Dashboard process list.
+enum DashboardLayout { list, grid }
+
 /// Configuration for a single managed process.
 class ProcessConfig {
   final String name;
@@ -118,11 +121,13 @@ class ProcessConfig {
 class AppConfig {
   final int outputHistoryLimit;
   final int outputRefreshMs;
+  final DashboardLayout dashboardLayout;
   final List<ProcessConfig> processes;
 
   const AppConfig({
     this.outputHistoryLimit = 1000,
     this.outputRefreshMs = 500,
+    this.dashboardLayout = DashboardLayout.list,
     this.processes = const [],
   });
 
@@ -157,6 +162,7 @@ class AppConfig {
   Map<String, dynamic> toJson() => {
     'output_history_limit': outputHistoryLimit,
     'output_refresh_ms': outputRefreshMs,
+    'dashboard_layout': dashboardLayout.name,
     'processes': processes.map((p) => p.toJson()).toList(),
   };
 
@@ -164,11 +170,25 @@ class AppConfig {
     return AppConfig(
       outputHistoryLimit: json['output_history_limit'] as int? ?? 1000,
       outputRefreshMs: json['output_refresh_ms'] as int? ?? 500,
+      dashboardLayout: _parseDashboardLayout(json['dashboard_layout']),
       processes:
           (json['processes'] as List<dynamic>?)
               ?.map((e) => ProcessConfig.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
     );
+  }
+
+  /// Parses a JSON value that should be a [DashboardLayout] name.
+  ///
+  /// Returns [DashboardLayout.list] for missing, non-string, or unknown
+  /// values.
+  static DashboardLayout _parseDashboardLayout(dynamic value) {
+    if (value is String) {
+      for (final layout in DashboardLayout.values) {
+        if (layout.name == value) return layout;
+      }
+    }
+    return DashboardLayout.list;
   }
 }
