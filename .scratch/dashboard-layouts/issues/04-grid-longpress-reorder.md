@@ -16,10 +16,10 @@ boundary so the settings seam stays untouched.
 
 **Status:** ready-for-agent
 
-- [ ] Long-press a grid card and drag: tiles reorder with animation
-- [ ] The new order persists to config.json through the same path as the
+- [x] Long-press a grid card and drag: tiles reorder with animation
+- [x] The new order persists to config.json through the same path as the
       List layout
-- [ ] Index semantics verified against the resolved package version; the
+- [x] Index semantics verified against the resolved package version; the
       settings contract unchanged
-- [ ] Dragging near the grid edges auto-scrolls
-- [ ] Widget test: long-press drag reorder in the grid + persistence
+- [x] Dragging near the grid edges auto-scrolls
+- [x] Widget test: long-press drag reorder in the grid + persistence

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_reorderable_grid_view/widgets/widgets.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/screens/process_detail_screen.dart';
 import 'package:trayforge/screens/process_edit_page.dart';
@@ -31,6 +32,14 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  /// Shared by the reorderable grid builder and the [GridView] itself; the
+  /// package requires one controller for drag-scroll calculations.
+  final _gridScrollController = ScrollController();
+
+  /// On the grid itself; the package uses it to locate the scrollable for
+  /// edge auto-scroll while dragging.
+  final _gridViewKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -171,25 +180,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Adaptive grid of compact square cards; columns adapt to window width.
+  ///
+  /// Wrapped in [ReorderableBuilder] for long-press drag reordering. The
+  /// package's `onReorderPositions` delivers final positions (the same
+  /// pre-adjusted index contract as `ReorderableListView.onReorderItem`),
+  /// so the entities pass through to the settings reorder path unchanged.
   Widget _buildGridBody(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 280,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 1,
-      ),
+    return ReorderableBuilder.builder(
+      scrollController: _gridScrollController,
       itemCount: widget.viewModel.processViewModels.length,
-      itemBuilder: (context, index) {
-        final vm = widget.viewModel.processViewModels[index];
-        return ProcessGridCard(
-          viewModel: vm,
-          onEditTap: () => _openEditPage(context, vm.name),
-          onTap: () => _openDetail(context, vm),
-        );
+      onReorderPositions: (entities) {
+        for (final entity in entities) {
+          widget.settingsViewModel?.reorderItem(
+            entity.oldIndex,
+            entity.newIndex,
+          );
+        }
       },
+      childBuilder: (itemBuilder) => GridView.builder(
+        key: _gridViewKey,
+        controller: _gridScrollController,
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 280,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 1,
+        ),
+        itemCount: widget.viewModel.processViewModels.length,
+        itemBuilder: (context, index) {
+          final vm = widget.viewModel.processViewModels[index];
+          return itemBuilder(
+            ProcessGridCard(
+              key: ValueKey(vm.name),
+              viewModel: vm,
+              onEditTap: () => _openEditPage(context, vm.name),
+              onTap: () => _openDetail(context, vm),
+            ),
+            index,
+          );
+        },
+      ),
     );
+  }
+
+  @override
+  void dispose() {
+    _gridScrollController.dispose();
+    super.dispose();
   }
 
   void _openDetail(BuildContext context, ProcessViewModel vm) {

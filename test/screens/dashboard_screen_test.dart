@@ -17,7 +17,7 @@ import '../helpers/recording_config_store.dart';
 
 /// Long-presses at [start], then drags to [end] and releases.
 ///
-/// Simulates the List layout's long-press reorder: hold past the
+/// Simulates long-press reorder in either layout: hold past the
 /// long-press threshold, then move, then release.
 Future<void> longPressDrag(
   WidgetTester tester,
@@ -600,6 +600,103 @@ void main() {
     });
 
     // ---- Grid layout ----
+
+    testWidgets('long-press drag reorders grid cards and persists', (
+      tester,
+    ) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [
+            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      // Let the grid's entrance fade-in run: the package only records
+      // each tile's original index once the fade-in has started (a couple
+      // of frames after the grid appears), and the reorder callback reads
+      // that index at drag end. Real users always long-press well after
+      // the grid appears; the test must simulate that gap.
+      await tester.pumpAndSettle();
+
+      // Long-press the first grid card and drag it onto the second. The
+      // drop index only advances while the pointer is *inside* the target
+      // tile's bounds, so aim at its center (a small offset keeps the
+      // pointer safely within the tile).
+      await longPressDrag(
+        tester,
+        tester.getCenter(find.text('svc-a')),
+        tester.getCenter(find.text('svc-b')) + const Offset(40, 0),
+      );
+
+      // The grid reordered visually: svc-a now sits right of svc-b.
+      expect(
+        tester.getTopLeft(find.text('svc-a')).dx,
+        greaterThan(tester.getTopLeft(find.text('svc-b')).dx),
+      );
+
+      // And the new order plus the carried layout persisted.
+      final saved = configStore.lastSaved;
+      expect(saved, isNotNull);
+      expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
+      expect(saved.dashboardLayout, DashboardLayout.grid);
+    });
+
+    testWidgets('dragging near the grid edge auto-scrolls', (tester) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [
+            for (var i = 1; i <= 12; i++)
+              ProcessConfig(name: 'svc-$i', cmd: 'svc-$i.exe'),
+          ],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Long-press a tile and hold it near the grid's bottom edge; the
+      // package scrolls while the pointer sits in the edge zone.
+      final tileCenter = tester.getCenter(find.text('svc-4'));
+      await longPressDrag(tester, tileCenter, Offset(tileCenter.dx, 500));
+
+      // The grid scrolled down during the drag.
+      final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
+      expect(scrollable.position.pixels, greaterThan(0));
+    });
 
     testWidgets('grid renders compact cards without output preview', (
       tester,
