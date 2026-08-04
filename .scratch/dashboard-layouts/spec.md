@@ -18,7 +18,7 @@ modes:
 - **List layout** (default, unchanged look): wide cards with status dot,
   controls, and output preview.
 - **Grid layout**: an adaptive grid of square compact cards — status dot,
-  name, WebUI copy, toggle, edit — with the latest two output lines.
+  name, WebUI copy, toggle, edit — with the latest five output lines.
   Columns adapt to window width.
 
 The choice persists in config.json (`dashboard_layout`, default `list`), so
@@ -44,7 +44,7 @@ handle is removed from the List layout.
 6. As a user, I want the Grid layout to show compact square cards with
    status dot, name, WebUI copy, start/stop toggle, and edit, so that I can
    see and control many processes at a glance.
-7. As a user, I want grid cards to show the latest two output lines, so
+7. As a user, I want grid cards to show the latest five output lines, so
    that I can spot problems at a glance without opening each process —
    without changing the card size, so the overview stays dense and square.
 8. As a user, I want grid columns to adapt to the window width, so that the
@@ -132,7 +132,7 @@ handle is removed from the List layout.
 - **Seam 1 — Dashboard widget tests** (existing dashboard screen test file):
   with a fake ConfigStore that records `save()` calls, cover: toggle button
   hidden when empty / shown when processes exist; tapping the button
-  switches between the two layouts; grid cards render the latest two
+  switches between the two layouts; grid cards render the latest five
   output lines (and nothing when there is no output) with working controls; tapping a grid card opens the detail
   page; long-press drag reorders in both layouts and persists the new order
   plus `dashboard_layout` to the saved config; a stored
@@ -155,7 +155,7 @@ handle is removed from the List layout.
 
 - Settings-page entry for the layout (single AppBar entry only).
 - Configurable card size or column count.
-- Configurable output preview length in Grid layout (fixed at two lines).
+- Configurable output preview length in Grid layout (fixed at five lines).
 - Animation/transition polish beyond Flutter's built-in reorder feedback.
 - Touch-specific optimizations (this is a desktop app).
 - Python trayforge schema parity (dropped by ADR 003).
