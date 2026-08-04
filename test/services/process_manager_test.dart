@@ -133,14 +133,24 @@ void main() {
         expect(content['startTime'], isA<String>());
       });
 
-      test('returns error when process not in config', () async {
-        final output = <String>[];
-        pm.outputStream('no-such').listen(output.add);
+      test(
+        'unknown process start is a silent no-op with inert streams',
+        () async {
+          final output = <String>[];
+          pm.outputStream('no-such').listen(output.add);
+          final states = <ProcState>[];
+          pm.stateStream('no-such').listen(states.add);
 
-        await pm.start('no-such');
+          await pm.start('no-such');
 
-        expect(output.any((l) => l.contains('not found')), isTrue);
-      });
+          // Unknown names get inert streams and stopped state — no events,
+          // no launch, no phantom controller materialized.
+          expect(output, isEmpty);
+          expect(states, isEmpty);
+          expect(mockRunner.starts, isEmpty);
+          expect(pm.getState('no-such'), ProcState.stopped);
+        },
+      );
 
       test('returns error when command is empty', () async {
         writeConfig(tmpDir, _testConfig(cmd: ''));
@@ -1396,6 +1406,119 @@ void main() {
 
         fresh.dispose();
         emptyDir.deleteSync(recursive: true);
+      });
+    });
+
+    // ---- materialization ----
+
+    group('materialization', () {
+      test('controllers exist for all configured names before '
+          'onConfigReloaded fires', () async {
+        writeConfig(tmpDir, _testConfig(name: 'svc1', autostart: true));
+        mockRunner.nextHandle = MockProcessHandle(pid: 701);
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await fresh.init();
+
+        // Subscribe to the reload event; the listener subscribes to the
+        // newly added process's state stream. If materialization had not
+        // completed before the emission, this would attach to an inert
+        // stream and never see events.
+        final states = <ProcState>[];
+        fresh.onConfigReloaded.listen((_) {
+          fresh.stateStream('added').listen(states.add);
+        });
+
+        final newConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
+            ProcessConfig(name: 'added', cmd: 'added.exe'),
+          ],
+        );
+        writeConfig(tmpDir, newConfig);
+        mockRunner.nextHandle = MockProcessHandle(pid: 702);
+        await fresh.reloadConfig(newConfig);
+
+        // The listener's subscription must be live: starting 'added'
+        // emits on the same stream it subscribed to.
+        await fresh.start('added');
+        expect(states, contains(ProcState.starting));
+        expect(states, contains(ProcState.running));
+
+        fresh.dispose();
+      });
+
+      test('kept names keep live streams across reload', () async {
+        writeConfig(tmpDir, _testConfig(name: 'svc1', autostart: true));
+        final handle = MockProcessHandle(pid: 910);
+        mockRunner.nextHandle = handle;
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await fresh.init();
+        expect(fresh.getState('svc1'), ProcState.running);
+
+        final output = <String>[];
+        fresh.outputStream('svc1').listen(output.add);
+
+        final sameConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [
+            ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
+          ],
+        );
+        writeConfig(tmpDir, sameConfig);
+        await fresh.reloadConfig(sameConfig);
+
+        // svc1 is kept: still running, no second start, and the pre-reload
+        // subscription is still attached to the same live pipeline.
+        expect(fresh.getState('svc1'), ProcState.running);
+        expect(mockRunner.starts.length, 1);
+
+        handle.emitStdout('still-alive line\n');
+        handle.closeOutputs();
+        fresh.flushNow('svc1');
+
+        expect(output.any((l) => l.contains('still-alive line')), isTrue);
+
+        fresh.dispose();
+      });
+
+      test('removed names are dropped from the map', () async {
+        writeConfig(tmpDir, _testConfig(name: 'will-be-removed'));
+        mockRunner.nextHandle = MockProcessHandle(pid: 600);
+
+        final fresh = ProcessManager(
+          configStore: configStore,
+          processRunner: mockRunner,
+          dataDir: tmpDir.path,
+        );
+        await fresh.start('will-be-removed');
+        expect(fresh.getState('will-be-removed'), ProcState.running);
+
+        final newConfig = AppConfig(
+          outputRefreshMs: 10,
+          outputHistoryLimit: 100,
+          processes: [],
+        );
+        writeConfig(tmpDir, newConfig);
+        await fresh.reloadConfig(newConfig);
+
+        // Dropped from the map: no controller remains, so a later start
+        // attempt launches nothing and the name stays inert.
+        expect(fresh.getState('will-be-removed'), ProcState.stopped);
+        await fresh.start('will-be-removed');
+        expect(mockRunner.starts.length, 1);
+
+        fresh.dispose();
       });
     });
 

@@ -24,8 +24,19 @@ class ProcessManager {
   final String _dataDir;
   final Logger? _logger;
 
-  /// Per-process controllers, one per lazily-materialized process.
+  /// Per-process controllers, one per configured Process.
+  ///
+  /// Materialized for every configured name at [init] and [reloadConfig]
+  /// (diff-based); unknown names never appear here.
   final Map<String, ProcessController> _controllers = {};
+
+  /// Names configured at the last [init] or [reloadConfig].
+  ///
+  /// The source of truth for whether a name may have a controller.
+  /// Refreshed from disk by [_isConfigured] as a fallback so lazy
+  /// materialization still works before [init] (matching the historical
+  /// behaviour).
+  Set<String> _configuredNames = {};
 
   // Config reload broadcast
   final StreamController<void> _onConfigReloadedController =
@@ -51,6 +62,8 @@ class ProcessManager {
   /// Call once after construction, before any other method.
   Future<void> init() async {
     await _cleanupStalePidFiles();
+    final config = _configStore.load();
+    if (config != null) _materialize(config);
     await _autostartAll();
   }
 
@@ -61,25 +74,32 @@ class ProcessManager {
   // ---------------------------------------------------------------------------
 
   /// Returns a broadcast stream of processed output lines for [name].
+  ///
+  /// Inert (never emits) for names that are not configured.
   Stream<String> outputStream(String name) {
-    return _controller(name).output;
+    return _controller(name)?.output ?? Stream<String>.empty();
   }
 
   /// Returns a broadcast stream of WebUI URL detections for [name].
   ///
   /// Each process gets its own detection stream — no relay or name
-  /// filtering needed.
+  /// filtering needed. Inert (never emits) for names that are not
+  /// configured.
   Stream<Uri> webUiStream(String name) {
-    return _controller(name).webUi;
+    return _controller(name)?.webUi ?? Stream<Uri>.empty();
   }
 
   /// Returns a broadcast stream of [ProcState] transitions for [name].
+  ///
+  /// Inert (never emits) for names that are not configured.
   Stream<ProcState> stateStream(String name) {
-    return _controller(name).state;
+    return _controller(name)?.state ?? Stream<ProcState>.empty();
   }
 
   /// Returns the current [ProcState] for [name], or [ProcState.stopped].
-  ProcState getState(String name) => _controller(name).currentState;
+  ProcState getState(String name) {
+    return _controller(name)?.currentState ?? ProcState.stopped;
+  }
 
   /// Starts the process named [name] using its current [ProcessConfig].
   ///
@@ -87,6 +107,13 @@ class ProcessManager {
   /// [AppConfig] + [ProcessConfig] to the process's [ProcessController].
   Future<void> start(String name) async {
     final controller = _controller(name);
+    if (controller == null) {
+      // Unknown name — no controller, no streams to report to. The
+      // system-message path below needs a controller, so this is a
+      // silent no-op (no phantom state is created).
+      _log('Cannot start: process "$name" not found in config');
+      return;
+    }
     final resolved = _resolveConfigFor(name);
     if (resolved == null) {
       controller.pushSystemMessage(
@@ -116,6 +143,11 @@ class ProcessManager {
   /// during `starting` honours the pending-stop from ticket #3.
   Future<void> toggle(String name) async {
     final controller = _controller(name);
+    if (controller == null) {
+      // Unknown name — see [start]; no phantom state is created.
+      _log('Cannot toggle: process "$name" not found in config');
+      return;
+    }
     final resolved = _resolveConfigFor(name);
     if (resolved == null) {
       controller.pushSystemMessage(
@@ -173,6 +205,13 @@ class ProcessManager {
       _controllers.remove(name);
     }
 
+    // Diff-based materialization: refresh the configured-name set and
+    // materialize a controller for every configured Process. Kept names
+    // keep their live controllers/streams; only new names are created.
+    // This completes before autostart and before [onConfigReloaded] fires,
+    // so viewmodels always subscribe to real streams.
+    _materialize(config);
+
     // Start new autostart processes that aren't already running.
     for (final proc in config.processes) {
       if (proc.autostart && !runningNames.contains(proc.name)) {
@@ -201,8 +240,10 @@ class ProcessManager {
   // Private: controller lookup
   // ---------------------------------------------------------------------------
 
-  /// Returns the [ProcessController] for [name], creating one if absent.
-  ProcessController _controller(String name) {
+  /// Returns the [ProcessController] for a configured [name], creating one
+  /// if absent; `null` for unknown names (inert streams, no phantom state).
+  ProcessController? _controller(String name) {
+    if (!_isConfigured(name)) return null;
     return _controllers.putIfAbsent(
       name,
       () => ProcessController(
@@ -213,6 +254,28 @@ class ProcessManager {
         cooldownDuration: cooldownDuration,
       ),
     );
+  }
+
+  /// Whether [name] is a configured process.
+  ///
+  /// Checks the materialized name set first; falls back to a disk read so
+  /// lazy materialization works before [init] and names newly added to the
+  /// config on disk are picked up without a [reloadConfig].
+  bool _isConfigured(String name) {
+    if (_configuredNames.contains(name)) return true;
+    final config = _configStore.load();
+    if (config == null) return false;
+    _configuredNames = config.processes.map((p) => p.name).toSet();
+    return _configuredNames.contains(name);
+  }
+
+  /// Materializes a controller for every Process in [config] and records
+  /// the configured names.
+  void _materialize(AppConfig config) {
+    _configuredNames = config.processes.map((p) => p.name).toSet();
+    for (final proc in config.processes) {
+      _controller(proc.name);
+    }
   }
 
   /// Loads the config and resolves the [ProcessConfig] for [name].
