@@ -32,10 +32,9 @@ class ProcessManager {
 
   /// Names configured at the last [init] or [reloadConfig].
   ///
-  /// The source of truth for whether a name may have a controller.
-  /// Refreshed from disk by [_isConfigured] as a fallback so lazy
-  /// materialization still works before [init] (matching the historical
-  /// behaviour).
+  /// The single source of truth for whether a name may have a controller.
+  /// Never refreshed from disk on a miss: unknown and removed names stay
+  /// truly inert (no phantom controller can be resurrected for them).
   Set<String> _configuredNames = {};
 
   // Config reload broadcast
@@ -243,8 +242,11 @@ class ProcessManager {
 
   /// Returns the [ProcessController] for a configured [name], creating one
   /// if absent; `null` for unknown names (inert streams, no phantom state).
+  ///
+  /// Materializes only names in [_configuredNames] — set by [init] and
+  /// [reloadConfig]. No disk read: removed names cannot be resurrected.
   ProcessController? _controller(String name) {
-    if (!_isConfigured(name)) return null;
+    if (!_configuredNames.contains(name)) return null;
     return _controllers.putIfAbsent(
       name,
       () => ProcessController(
@@ -255,19 +257,6 @@ class ProcessManager {
         cooldownDuration: cooldownDuration,
       ),
     );
-  }
-
-  /// Whether [name] is a configured process.
-  ///
-  /// Checks the materialized name set first; falls back to a disk read so
-  /// lazy materialization works before [init] and names newly added to the
-  /// config on disk are picked up without a [reloadConfig].
-  bool _isConfigured(String name) {
-    if (_configuredNames.contains(name)) return true;
-    final config = _configStore.load();
-    if (config == null) return false;
-    _configuredNames = config.processes.map((p) => p.name).toSet();
-    return _configuredNames.contains(name);
   }
 
   /// Materializes a controller for every Process in [config] and records

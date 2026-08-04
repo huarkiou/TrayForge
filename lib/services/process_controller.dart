@@ -351,7 +351,7 @@ class ProcessController {
 
     await _processRunner.killPid(handle.pid);
 
-    if (_disposed) return;
+    if (_disposed || _removed) return;
     _cleanup();
     _setState(ProcState.stopped);
     _pushSystemMessage('Process stopped');

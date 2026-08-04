@@ -24,7 +24,7 @@ void main() {
     late MockProcessRunner mockRunner;
     late ProcessManager manager;
 
-    setUp(() {
+    setUp(() async {
       tmpDir = Directory.systemTemp.createTempSync('tf_tray_test_');
       configStore = ConfigStore(dataDir: tmpDir.path);
       mockRunner = MockProcessRunner();
@@ -34,6 +34,10 @@ void main() {
         dataDir: tmpDir.path,
       );
       writeConfig(tmpDir, _testConfig());
+
+      // Materialize controllers for configured names; the manager no
+      // longer lazily reads the config from disk on a miss.
+      await manager.init();
     });
 
     tearDown(() {

@@ -114,19 +114,23 @@ void main() {
       tmpDir.deleteSync(recursive: true);
     });
 
-    ProcessManager createManager() {
-      return ProcessManager(
+    Future<ProcessManager> createManager() async {
+      final manager = ProcessManager(
         configStore: configStore,
         processRunner: mockRunner,
         dataDir: tmpDir.path,
       );
+      // Materialize controllers for configured names; the manager
+      // no longer lazily reads the config from disk on a miss.
+      await manager.init();
+      return manager;
     }
 
     // ---- State mirroring ----
 
-    test('mirrors initial state from ProcessManager', () {
+    test('mirrors initial state from ProcessManager', () async {
       writeConfig(tmpDir, _testConfig());
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -140,7 +144,7 @@ void main() {
     test('mirrors state transitions from ProcessManager', () async {
       writeConfig(tmpDir, _testConfig());
       mockRunner.nextHandle = MockProcessHandle(pid: 52);
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -164,7 +168,7 @@ void main() {
       writeConfig(tmpDir, _testConfig(outputRefreshMs: 10));
       final handle = MockProcessHandle(pid: 53);
       mockRunner.nextHandle = handle;
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -192,7 +196,7 @@ void main() {
       );
       final handle = MockProcessHandle(pid: 54);
       mockRunner.nextHandle = handle;
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -223,7 +227,7 @@ void main() {
       );
       final handle = MockProcessHandle(pid: 55);
       mockRunner.nextHandle = handle;
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -260,7 +264,7 @@ void main() {
           ],
         ),
       );
-      manager = createManager();
+      manager = await createManager();
 
       final vmB = ProcessViewModel(
         name: 'svc-b',
@@ -284,7 +288,7 @@ void main() {
     test('toggle starts stopped process', () async {
       writeConfig(tmpDir, _testConfig());
       mockRunner.nextHandle = MockProcessHandle(pid: 42);
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -311,7 +315,7 @@ void main() {
     test('toggle stops running process', () async {
       writeConfig(tmpDir, _testConfig());
       mockRunner.nextHandle = MockProcessHandle(pid: 43);
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -333,7 +337,7 @@ void main() {
     test('toggle is idempotent while starting', () async {
       writeConfig(tmpDir, _testConfig());
       mockRunner.nextHandle = MockProcessHandle(pid: 44);
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -400,7 +404,7 @@ void main() {
     test('isTransitioning clears once a terminal state arrives', () async {
       writeConfig(tmpDir, _testConfig());
       mockRunner.nextHandle = MockProcessHandle(pid: 45);
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -423,7 +427,7 @@ void main() {
 
     test('dispose cancels subscriptions', () async {
       writeConfig(tmpDir, _testConfig());
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -439,9 +443,9 @@ void main() {
 
     // ---- outputLines is unmodifiable ----
 
-    test('outputLines returns an unmodifiable list', () {
+    test('outputLines returns an unmodifiable list', () async {
       writeConfig(tmpDir, _testConfig());
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -454,9 +458,9 @@ void main() {
 
     // ---- Safe dispose ----
 
-    test('addListener is no-op after dispose', () {
+    test('addListener is no-op after dispose', () async {
       writeConfig(tmpDir, _testConfig());
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
@@ -476,9 +480,9 @@ void main() {
       expect(called, false);
     });
 
-    test('removeListener is no-op after dispose', () {
+    test('removeListener is no-op after dispose', () async {
       writeConfig(tmpDir, _testConfig());
-      manager = createManager();
+      manager = await createManager();
 
       final vm = ProcessViewModel(
         name: 'test-svc',
