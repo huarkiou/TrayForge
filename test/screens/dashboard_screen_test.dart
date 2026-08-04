@@ -42,12 +42,7 @@ Future<void> longPressDrag(
 /// [configCorrupted] forwards to [DashboardViewModel]; [withSettings] also
 /// adds a [SettingsViewModel] (and the AppBar buttons that come with it).
 Future<
-  ({
-    RecordingConfigStore store,
-    _FakeProcessManager pm,
-    DashboardViewModel dm,
-    SettingsViewModel? sm,
-  })
+  ({RecordingConfigStore store, _FakeProcessManager pm, DashboardViewModel dm})
 >
 pumpDashboard(
   WidgetTester tester, {
@@ -74,7 +69,7 @@ pumpDashboard(
       home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
     ),
   );
-  return (store: store, pm: pm, dm: dm, sm: sm);
+  return (store: store, pm: pm, dm: dm);
 }
 
 /// A minimal fake that satisfies the [ProcessManager] interface for

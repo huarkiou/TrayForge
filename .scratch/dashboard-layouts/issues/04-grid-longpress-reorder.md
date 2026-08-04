@@ -64,6 +64,9 @@ Spec axis:
 - `spec.md` List-layout paragraph corrected to match the implemented
   `ReorderableDelayedDragStartListener` / `buildDefaultDragHandles: false`
   (was stale `buildDefaultDragHandles: true`).
+- Second review (2026-08-04): mouse-kind and grid-action tests verified
+  against real widget behavior; all 27 rewritten tests preserved their
+  assertions; the unused `sm` field was dropped from the harness record.
 - Closed as accepted (already recorded in #2/#3): long-press on a card
   button starts a reorder (quick taps win); `Status:` line stays
   `ready-for-agent`; `ProcessCard`/`ProcessGridCard` shell duplication
