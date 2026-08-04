@@ -66,3 +66,19 @@ methods delegate to controllers; `cooldownDuration` and `flushNow` stay
 on the facade as forwarding seams for existing tests. Materialization
 happens **before** `onConfigReloaded` is emitted, so viewmodels always
 subscribe to real streams.
+
+## UI
+
+**Dashboard**:
+The main window showing every configured Process at a glance.
+_Avoid_: main window, home screen
+
+**List layout**:
+The default Dashboard arrangement — wide cards, each with a status dot,
+controls, and an output preview, reordered by long-press.
+_Avoid_: card list, the current layout
+
+**Grid layout**:
+The alternative Dashboard arrangement — square compact cards without an
+output preview, arranged in an adaptive grid, reordered by long-press.
+_Avoid_: tile view, square card matrix
