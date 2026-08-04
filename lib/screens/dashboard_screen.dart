@@ -130,22 +130,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
       itemBuilder: (context, index) {
         final vm = widget.viewModel.processViewModels[index];
-        return ProcessCard(
+        // Long-press anywhere on the card to start a reorder drag;
+        // quick taps pass through to the card's own handlers.
+        return ReorderableDelayedDragStartListener(
           key: ValueKey(vm.name),
-          viewModel: vm,
-          dragHandleIndex: index,
-          onEditTap: () => _openEditPage(context, vm.name),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ProcessDetailPage(
-                  viewModel: vm,
-                  onEditTap: () => _openEditPage(context, vm.name),
+          index: index,
+          child: ProcessCard(
+            viewModel: vm,
+            onEditTap: () => _openEditPage(context, vm.name),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProcessDetailPage(
+                    viewModel: vm,
+                    onEditTap: () => _openEditPage(context, vm.name),
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );

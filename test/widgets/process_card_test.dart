@@ -372,31 +372,5 @@ void main() {
       await tester.tap(find.byIcon(Icons.edit));
       expect(editTapped, true);
     });
-
-    // ---- Drag handle ----
-
-    testWidgets('hides drag handle when dragHandleIndex is null', (
-      tester,
-    ) async {
-      await tester.pumpWidget(buildCard());
-      await tester.pump();
-
-      expect(find.byIcon(Icons.drag_handle), findsNothing);
-    });
-
-    testWidgets('shows drag handle when dragHandleIndex is non-null', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ProcessCard(viewModel: vm, onTap: () {}, dragHandleIndex: 0),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      expect(find.byIcon(Icons.drag_handle), findsOneWidget);
-    });
   });
 }

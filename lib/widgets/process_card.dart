@@ -13,7 +13,6 @@ class ProcessCard extends StatelessWidget {
   final ProcessViewModel viewModel;
   final VoidCallback onTap;
   final VoidCallback? onEditTap;
-  final int? dragHandleIndex;
 
   /// Number of output lines to display in the card body.
   static const int previewLines = 15;
@@ -23,7 +22,6 @@ class ProcessCard extends StatelessWidget {
     required this.viewModel,
     required this.onTap,
     this.onEditTap,
-    this.dragHandleIndex,
   });
 
   @override
@@ -41,11 +39,7 @@ class ProcessCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Header(
-                    viewModel: viewModel,
-                    onEditTap: onEditTap,
-                    dragHandleIndex: dragHandleIndex,
-                  ),
+                  _Header(viewModel: viewModel, onEditTap: onEditTap),
                   const SizedBox(height: 8),
                   _OutputPreview(viewModel: viewModel),
                 ],
@@ -62,26 +56,11 @@ class ProcessCard extends StatelessWidget {
 class _Header extends StatelessWidget {
   final ProcessViewModel viewModel;
   final VoidCallback? onEditTap;
-  final int? dragHandleIndex;
 
-  const _Header({
-    required this.viewModel,
-    this.onEditTap,
-    this.dragHandleIndex,
-  });
+  const _Header({required this.viewModel, this.onEditTap});
 
   @override
   Widget build(BuildContext context) {
-    final dragHandle = dragHandleIndex != null
-        ? ReorderableDragStartListener(
-            index: dragHandleIndex!,
-            child: const Padding(
-              padding: EdgeInsets.only(left: 12, right: 4),
-              child: Icon(Icons.drag_handle, color: Colors.grey, size: 20),
-            ),
-          )
-        : null;
-
     final editButton = onEditTap != null
         ? IconButton(
             icon: const Icon(Icons.edit, size: 20),
@@ -93,7 +72,6 @@ class _Header extends StatelessWidget {
 
     return Row(
       children: [
-        if (dragHandle != null) dragHandle,
         StatusDot(state: viewModel.state),
         const SizedBox(width: 8),
         Expanded(

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge/foundation/models.dart';
@@ -10,9 +11,37 @@ import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
+import '../helpers/recording_config_store.dart';
+
+/// Long-presses at [start], then drags to [end] and releases.
+///
+/// Simulates the List layout's long-press reorder: hold past the
+/// long-press threshold, then move, then release.
+Future<void> longPressDrag(
+  WidgetTester tester,
+  Offset start,
+  Offset end,
+) async {
+  final gesture = await tester.startGesture(start);
+  await tester.pump(kLongPressTimeout);
+  // Small initial move so the drag actually starts.
+  await gesture.moveBy(const Offset(0, 20));
+  await tester.pump();
+  await gesture.moveTo(end);
+  await tester.pumpAndSettle();
+  await gesture.up();
+  await tester.pumpAndSettle();
+}
+
 /// A minimal fake that satisfies the [ProcessManager] interface for
 /// DashboardViewModel construction.
 class _FakeProcessManager extends Fake implements ProcessManager {
+  final StreamController<void> _configReloaded =
+      StreamController<void>.broadcast(sync: true);
+
+  /// Names passed to [ProcessManager.toggle], in call order.
+  final List<String> toggled = [];
+
   @override
   Stream<ProcState> stateStream(String name) => const Stream<ProcState>.empty();
 
@@ -23,10 +52,20 @@ class _FakeProcessManager extends Fake implements ProcessManager {
   Stream<Uri> webUiStream(String name) => const Stream<Uri>.empty();
 
   @override
-  Stream<void> get onConfigReloaded => const Stream<void>.empty();
+  Stream<void> get onConfigReloaded => _configReloaded.stream;
 
   @override
   ProcState getState(String name) => ProcState.stopped;
+
+  @override
+  Future<void> reloadConfig(AppConfig config) async {
+    _configReloaded.add(null);
+  }
+
+  @override
+  Future<void> toggle(String name) async {
+    toggled.add(name);
+  }
 }
 
 /// A fake [ConfigStore] that returns a fixed config.
@@ -341,9 +380,9 @@ void main() {
       expect(find.widgetWithText(AppBar, 'Edit Process'), findsOneWidget);
     });
 
-    // ---- Drag-to-reorder ----
+    // ---- Long-press reorder ----
 
-    testWidgets('shows drag handles on process cards', (tester) async {
+    testWidgets('does not render drag handle icons on cards', (tester) async {
       final dm = DashboardViewModel(
         configStore: _FakeConfigStore(
           AppConfig(
@@ -374,7 +413,85 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
+      expect(find.byIcon(Icons.drag_handle), findsNothing);
+    });
+
+    testWidgets('long-press drag reorders cards and persists', (tester) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          processes: [
+            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      // Long-press the first card and drag it well past the second
+      // (the drop index only advances once the proxy clears the target
+      // item's trailing edge, so overshoot generously).
+      await longPressDrag(
+        tester,
+        tester.getCenter(find.text('svc-a')),
+        tester.getCenter(find.text('svc-b')) + const Offset(0, 150),
+      );
+
+      // The list reordered visually.
+      expect(
+        tester.getTopLeft(find.text('svc-a')).dy,
+        greaterThan(tester.getTopLeft(find.text('svc-b')).dy),
+      );
+
+      // And the new order plus the carried layout persisted.
+      final saved = configStore.lastSaved;
+      expect(saved, isNotNull);
+      expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
+      expect(saved.dashboardLayout, DashboardLayout.grid);
+    });
+
+    testWidgets('toggle button still works on cards', (tester) async {
+      final configStore = RecordingConfigStore(
+        AppConfig(
+          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
+      final processManager = _FakeProcessManager();
+      final dm = DashboardViewModel(
+        configStore: configStore,
+        processManager: processManager,
+      );
+      final sm = SettingsViewModel(
+        configStore: configStore,
+        processManager: processManager,
+        autostart: Autostart(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.play_circle_outlined));
+      await tester.pump();
+
+      expect(processManager.toggled, ['svc-a']);
     });
   });
 }
