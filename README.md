@@ -1,6 +1,6 @@
 # TrayForge
 
-[![Test](https://github.com/huarkiou/TrayForge/actions/workflows/test.yml/badge.svg)](https://github.com/huarkiou/TrayForge/actions/workflows/test.yml)
+[![Test](https://github.com/huarkiou/trayforge/actions/workflows/test.yml/badge.svg)](https://github.com/huarkiou/trayforge/actions/workflows/test.yml)
 
 A Flutter desktop app that manages background processes from the system tray.
 Define your processes in a JSON config, and TrayForge keeps them running — auto-start,
