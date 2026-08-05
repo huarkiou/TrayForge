@@ -12,6 +12,9 @@ auto-restart on crash, and colour-coded tray icon at a glance.
   running, red when none are. Single-click the tray icon to toggle the management
   window; right-click for the context menu.
 - **Start / stop processes** from the tray menu or the dashboard.
+- **Dashboard layouts** — switch between a list of wide cards and a grid of
+  compact square cards from the dashboard AppBar; reorder cards by long-press
+  drag in either layout.
 - **Inline process editing** — add, edit, duplicate, delete, and reorder processes
   directly from the Dashboard — no need to open Settings.
 - **Auto-start** — processes with `autostart: true` launch when TrayForge starts.
@@ -19,6 +22,9 @@ auto-restart on crash, and colour-coded tray icon at a glance.
   after the limit and marks the process as crashed.
 - **Output viewer** — merged stdout + stderr with ANSI-stripping, per-process
   scrollable output, and copy-to-clipboard.
+- **Follow-latest log view** — the detail page tracks the newest output and
+  scrolls along with it; scrolling up detaches the view, and scrolling back down
+  resumes following.
 - **WebUI detection** — set a `webui_pattern` regex and TrayForge captures the URL
   when your process prints it. Copy it from the process detail page.
 - **Singleton enforcement** — prevent duplicate process instances (per-process or
@@ -32,6 +38,14 @@ auto-restart on crash, and colour-coded tray icon at a glance.
   alerts you instead of crashing.
 - **Cross-platform** — Windows and Linux.
 
+## Screenshots
+
+![Dashboard in list layout](docs/screenshots/dashboard-list.png)
+
+![Dashboard in grid layout](docs/screenshots/dashboard-grid.png)
+
+![Process detail page](docs/screenshots/detail-page.png)
+
 ## Configuration
 
 TrayForge stores its config in `config.json` under the app data directory
@@ -43,6 +57,7 @@ TrayForge stores its config in `config.json` under the app data directory
 {
   "output_history_limit": 1000,
   "output_refresh_ms": 500,
+  "dashboard_layout": "list",
   "processes": [
     {
       "name": "NapCat",
@@ -95,8 +110,9 @@ TrayForge stores its config in `config.json` under the app data directory
 
 | Field                  | Type    | Default  | Description                                   |
 |------------------------|---------|----------|-----------------------------------------------|
-| `output_history_limit` | `int`   | `1000`   | Max output lines buffered per process.         |
-| `output_refresh_ms`    | `int`   | `500`    | Interval (ms) for batching output line flushes. |
+| `output_history_limit` | `int`    | `1000`   | Max output lines buffered per process.           |
+| `output_refresh_ms`    | `int`    | `500`    | Interval (ms) for batching output line flushes.  |
+| `dashboard_layout`     | `string` | `list`   | Dashboard arrangement: `list` (wide cards) or `grid` (compact square cards). |
 
 ## Usage
 
@@ -108,7 +124,7 @@ All process management happens on the **Dashboard**:
 - **Edit** — click the pencil icon on any process card or in the detail page AppBar
 - **Duplicate** — open edit form and click "Duplicate" to copy a process
 - **Delete** — open edit form and click "Delete" (requires confirmation; warns if running)
-- **Reorder** — long-press and drag the `≡` handle on the left of each card
+- **Reorder** — long-press and drag a card to a new position
 - **Start/Stop** — toggle button on each card or in the detail page
 
 ### Settings
@@ -117,6 +133,7 @@ The Settings page (gear icon) contains only global options:
 
 - **Output refresh (ms)** — batch interval for output display (100ms steps, 100–5000)
 - **History limit** — max output lines per process (500-line steps, 100–100000)
+- **Dashboard layout** — arrange cards as a list or a grid
 - **Launch at startup** — register TrayForge for OS-level autostart
 
 ## Build & Run
@@ -161,6 +178,7 @@ lib/
 │   └── process_cwd_linux.dart         # Linux: /proc/<pid>/cwd
 ├── services/
 │   ├── config_store.dart              # config.json read/write with backups
+│   ├── process_controller.dart        # Per-process lifecycle state machine
 │   ├── process_manager.dart           # Process lifecycle (start/stop/restart)
 │   ├── process_runner.dart            # IProcessRunner + real + mock impls
 │   ├── single_instance.dart           # Named mutex / lock file
