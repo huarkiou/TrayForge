@@ -205,7 +205,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           maxCrossAxisExtent: 280,
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
-          childAspectRatio: 1,
+          // Slightly shorter than square (1.0): at the default 800px-wide
+          // window a tile is 253px wide and 224px tall — two preview lines
+          // shorter than a square tile, with room left for a WebUI URL.
+          childAspectRatio: 1.13,
         ),
         itemCount: widget.viewModel.processViewModels.length,
         itemBuilder: (context, index) {

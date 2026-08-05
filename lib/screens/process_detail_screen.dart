@@ -22,9 +22,12 @@ class ProcessDetailPage extends StatefulWidget {
 }
 
 class _ProcessDetailPageState extends State<ProcessDetailPage> {
+  /// Distance from the bottom of the log that separates Follow-latest
+  /// from Detached.
+  static const double _followThreshold = 100.0;
+
   final ScrollController _scrollController = ScrollController();
   bool _autoScroll = true;
-  bool _initialScrollDone = false;
   bool _searchVisible = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -38,6 +41,9 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
     _vm.addListener(_onViewModelChanged);
     _scrollController.addListener(_onScroll);
     _searchController.addListener(_onSearchChanged);
+    // Opening the page always starts in Follow-latest, pinned to the newest
+    // output — independent of any view-model notification.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
   @override
@@ -57,13 +63,6 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
   }
 
   void _onViewModelChanged() {
-    // Always scroll to bottom on first output load.
-    if (!_initialScrollDone) {
-      _initialScrollDone = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-      return;
-    }
-
     if (!_autoScroll) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -75,7 +74,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
     if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
     final threshold = (position.maxScrollExtent - position.pixels).abs();
-    _autoScroll = threshold < 100;
+    _autoScroll = threshold < _followThreshold;
   }
 
   void _onSearchChanged() {
@@ -148,7 +147,13 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
                   IconButton(
                     icon: const Icon(Icons.delete_sweep),
                     tooltip: 'Clear output',
-                    onPressed: () => _vm.clearOutput(),
+                    onPressed: () {
+                      // Clearing starts a new log session: return to
+                      // Follow-latest, since the previous scroll position
+                      // referred to deleted content.
+                      _autoScroll = true;
+                      _vm.clearOutput();
+                    },
                   ),
                 );
                 children.add(
@@ -167,6 +172,10 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
           ],
         ),
         body: Column(
+          // Stretch: with loose constraints (Scaffold body) the Column would
+          // otherwise collapse to the log's content width, dragging the
+          // scrollbar away from the window's right edge.
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_searchVisible)
               Padding(

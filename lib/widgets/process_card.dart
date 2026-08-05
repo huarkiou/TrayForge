@@ -132,9 +132,9 @@ class ProcessCardActions extends StatelessWidget {
 
 /// A compact square card for the Dashboard Grid layout.
 ///
-/// Layered to fill the square tile: status dot + label on top, process
-/// name (and WebUI URL when present) and the latest five output lines in
-/// the middle, action buttons along the bottom.
+/// Layered to fill the square tile: status dot + label and the process
+/// name on top, WebUI URL (when present) and the latest five output lines
+/// in the middle, action buttons along the bottom.
 class ProcessGridCard extends StatelessWidget {
   final ProcessViewModel viewModel;
   final VoidCallback onTap;
@@ -176,7 +176,7 @@ class ProcessGridCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 6),
                   Text(
                     viewModel.name,
                     style: const TextStyle(
@@ -186,6 +186,7 @@ class ProcessGridCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  const Spacer(),
                   if (viewModel.webuiUrl != null)
                     Text(
                       viewModel.webuiUrl.toString(),

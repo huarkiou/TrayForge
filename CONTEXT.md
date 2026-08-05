@@ -82,3 +82,34 @@ _Avoid_: card list, the current layout
 The alternative Dashboard arrangement — square compact cards without an
 output preview, arranged in an adaptive grid, reordered by long-press.
 _Avoid_: tile view, square card matrix
+
+**Detail page**:
+The full-screen view opened by tapping a Process card — the complete
+output log, status, and controls.
+_Avoid_: log page, process viewer
+
+**Follow-latest**:
+The log-view state where the view tracks the newest output: while the
+scroll position is within the Follow threshold of the bottom, arriving
+output scrolls the view to the bottom.
+_Avoid_: auto-scroll, sticky bottom
+
+**Detached**:
+The log-view state after the user scrolls beyond the Follow threshold:
+arriving output appends without changing the visible content. Scrolling
+back within the threshold returns to Follow-latest.
+_Avoid_: scroll-lock, frozen, pinned
+
+**Follow threshold**:
+The fixed distance from the bottom of the log (100 px) that separates
+Follow-latest from Detached.
+_Avoid_: autoscroll threshold
+
+Log-view behaviour (as agreed):
+
+- Opening the Detail page always starts in Follow-latest, pinned to the
+  newest output, before any user scrolling.
+- Clearing the output returns the view to Follow-latest: the previous
+  scroll position referred to content that no longer exists.
+- Head trimming at the output-history cap may shift Detached content;
+  accepted as orthogonal to Follow-latest/Detached.

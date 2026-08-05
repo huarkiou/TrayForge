@@ -17,9 +17,11 @@ modes:
 
 - **List layout** (default, unchanged look): wide cards with status dot,
   controls, and output preview.
-- **Grid layout**: an adaptive grid of square compact cards — status dot,
+- **Grid layout**: an adaptive grid of compact cards — status dot,
   name, WebUI copy, toggle, edit — with the latest five output lines.
-  Columns adapt to window width.
+  Columns adapt to window width; tiles are slightly shorter than square
+  (~1.13:1 width:height) so cards fit two fewer preview lines than a
+  square tile.
 
 The choice persists in config.json (`dashboard_layout`, default `list`), so
 the Dashboard opens in the last-used layout after a restart.
@@ -103,7 +105,9 @@ handle is removed from the List layout.
   The package exposes no `ReorderableGridView` widget — it provides
   `ReorderableBuilder`, which wraps **our own** `GridView` (supports
   `GridView.builder`): we keep the adaptive square grid
-  (`maxCrossAxisExtent` ~280, 1:1 `childAspectRatio`) and wrap it in
+  (`maxCrossAxisExtent` ~280, `childAspectRatio` 1.13 — slightly shorter
+  than square so tiles stay dense without wrapping preview lines) and
+  wrap it in
   `ReorderableBuilder.builder`, sharing one `ScrollController` between the
   builder and the grid. Long-press drag is configured via `longPressDelay`
   (default 500 ms, matching the List layout's long-press); automatic

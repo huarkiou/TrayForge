@@ -593,12 +593,13 @@ void main() {
         ),
       );
 
-      // Adaptive square grid: max tile extent 280 with 1:1 aspect.
+      // Adaptive grid: max tile extent 280 with a slightly-shorter-than-
+      // square 1.13 aspect (two preview lines shorter than a square tile).
       final delegate =
           tester.widget<GridView>(find.byType(GridView)).gridDelegate
               as SliverGridDelegateWithMaxCrossAxisExtent;
       expect(delegate.maxCrossAxisExtent, 280);
-      expect(delegate.childAspectRatio, 1);
+      expect(delegate.childAspectRatio, 1.13);
 
       // One compact card per process with name, status dot, and controls.
       expect(find.byType(ProcessGridCard), findsNWidgets(2));

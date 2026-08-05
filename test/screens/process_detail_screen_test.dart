@@ -56,6 +56,11 @@ class _FakeProcessManager extends Fake implements ProcessManager {
   }
 
   @override
+  void clearOutput(String name) {
+    // The view model clears its own buffer; nothing to reset here.
+  }
+
+  @override
   Future<void> start(String name) async {
     await Future<void>.delayed(Duration.zero);
     setState(name, ProcState.starting);
@@ -147,6 +152,41 @@ void main() {
 
     Widget buildPage() {
       return MaterialApp(home: ProcessDetailPage(viewModel: vm));
+    }
+
+    // Mirrors _ProcessDetailPageState._followThreshold — the production
+    // constant is private and unreachable from tests.
+    const followThreshold = 100.0;
+    const detachOffset = 300.0;
+
+    // Builds a page with 120 pre-filled output lines (300-line history cap)
+    // and scrolls it past the follow threshold. Returns the fake manager and
+    // the page's scroll controller.
+    Future<(_FakeProcessManager, ScrollController)> pumpDetached(
+      WidgetTester tester,
+    ) async {
+      final fake = _FakeProcessManager();
+      final vm = ProcessViewModel(
+        name: 'test-svc',
+        processManager: fake,
+        outputHistoryLimit: 300,
+      );
+      for (var i = 0; i < 120; i++) {
+        fake.emitOutput('test-svc', 'line $i');
+      }
+      await tester.pumpWidget(
+        MaterialApp(home: ProcessDetailPage(viewModel: vm)),
+      );
+      await tester.pump();
+
+      final controller = tester
+          .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+          .controller!;
+      controller.position.jumpTo(
+        controller.position.maxScrollExtent - detachOffset,
+      );
+      await tester.pump();
+      return (fake, controller);
     }
 
     // ---- Rendering ----
@@ -429,6 +469,73 @@ void main() {
         find.byType(SelectableText),
       );
       expect(selectable.data, contains('new line!'));
+    });
+
+    testWidgets('opens at the bottom even without new output', (tester) async {
+      // Pre-fill the buffer before the page attaches; no notification will
+      // reach the page after it opens (the process is quiet).
+      for (var i = 0; i < 50; i++) {
+        fakeManager.emitOutput('test-svc', 'line $i');
+      }
+      await tester.pumpWidget(buildPage());
+      await tester.pump();
+
+      final controller = tester
+          .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+          .controller!;
+      expect(controller.position.pixels, controller.position.maxScrollExtent);
+    });
+
+    testWidgets('new output does not move the view while detached', (
+      tester,
+    ) async {
+      final (fake, controller) = await pumpDetached(tester);
+      final pixelsBefore = controller.position.pixels;
+      expect(
+        controller.position.maxScrollExtent - controller.position.pixels,
+        greaterThan(followThreshold),
+      );
+
+      // New output must not change what the user sees.
+      fake.emitOutput('test-svc', 'new line!');
+      await tester.pump();
+      await tester.pump(); // post-frame callback
+      expect(controller.position.pixels, pixelsBefore);
+    });
+
+    testWidgets('re-engages follow-latest when scrolled back to the bottom', (
+      tester,
+    ) async {
+      final (fake, controller) = await pumpDetached(tester);
+
+      // Scroll back down to the bottom — within the threshold again.
+      controller.position.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+
+      fake.emitOutput('test-svc', 'new line!');
+      await tester.pump();
+      await tester.pump(); // post-frame callback
+      expect(controller.position.pixels, controller.position.maxScrollExtent);
+    });
+
+    testWidgets('clearing output returns to follow-latest', (tester) async {
+      final (fake, controller) = await pumpDetached(tester);
+
+      // Clear while detached — the view must return to Follow-latest.
+      await tester.tap(find.byIcon(Icons.delete_sweep));
+      await tester.pump();
+      await tester.pump();
+
+      // Enough output to overflow the viewport: if the reset were missing,
+      // the view would sit at the top while the log grows below it, and
+      // pixels would stay at 0.
+      for (var i = 0; i < 50; i++) {
+        fake.emitOutput('test-svc', 'fresh line $i');
+      }
+      await tester.pump();
+      await tester.pump(); // post-frame callback
+      expect(controller.position.pixels, greaterThan(0));
+      expect(controller.position.pixels, controller.position.maxScrollExtent);
     });
 
     // ---- Output preservation ----
