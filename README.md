@@ -40,17 +40,17 @@ auto-restart on crash, and colour-coded tray icon at a glance.
 
 ## Screenshots
 
+**List layout** — wide cards with status, controls, and an output preview.
+
 ![Dashboard in list layout](docs/screenshots/dashboard-list.png)
 
-Wide cards with status, controls, and an output preview.
+**Grid layout** — compact square cards without an output preview.
 
 ![Dashboard in grid layout](docs/screenshots/dashboard-grid.png)
 
-Compact square cards without an output preview.
+**Detail page** — full output log with status and controls.
 
 ![Process detail page](docs/screenshots/detail-page.png)
-
-Full output log with status and controls.
 
 ## Configuration
 
