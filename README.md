@@ -44,7 +44,7 @@ auto-restart on crash, and colour-coded tray icon at a glance.
 
 ![Dashboard in list layout](docs/screenshots/dashboard-list.png)
 
-**Grid layout** — compact square cards without an output preview.
+**Grid layout** — compact square cards with the latest five output lines.
 
 ![Dashboard in grid layout](docs/screenshots/dashboard-grid.png)
 
