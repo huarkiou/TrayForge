@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
-import 'package:tray_manager/tray_manager.dart';
+import 'package:desktop_tray/desktop_tray.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:trayforge/foundation/logger.dart';
@@ -30,6 +30,18 @@ late final DashboardViewModel _dashboardViewModel;
 late final Autostart _autostart;
 late final SettingsViewModel _settingsViewModel;
 Timer? _wakeTimer;
+
+/// Whether a system tray (StatusNotifierWatcher on Linux) is available.
+///
+/// Determined once at startup; on non-Linux platforms this is always true.
+/// When false the app must not rely on the tray icon for window recovery:
+/// the Dashboard shows at startup and closing the window exits the app.
+bool _trayAvailable = true;
+
+/// Guards [_exitApp] against re-entry: destroying the window fires
+/// [WindowListener.onWindowClose] again, which (without a tray) calls
+/// [_exitApp] a second time.
+bool _exiting = false;
 
 // ---------------------------------------------------------------------------
 // Entry point
@@ -108,10 +120,26 @@ Future<void> main() async {
 
   // ---- Tray setup ----
 
-  await trayManager.setIcon(_trayViewModel.iconPath);
-  await trayManager.setToolTip('trayforge');
-  await trayManager.setContextMenu(_trayViewModel.buildMenu());
-  trayManager.addListener(_AppTrayListener());
+  // Probe for a system tray first: with no tray area (e.g. a desktop
+  // environment without StatusNotifierWatcher on Linux) the tray icon is
+  // invisible and the Dashboard must stay reachable on its own.
+  _trayAvailable = await DesktopTray.instance.checkAvailable();
+  _logger.log('System tray available: $_trayAvailable');
+
+  await DesktopTray.instance.setIcon(_trayViewModel.iconPath);
+  await DesktopTray.instance.setToolTip('trayforge');
+  await DesktopTray.instance.setContextMenu(_trayViewModel.buildMenu());
+  DesktopTray.instance.addListener(_AppTrayListener());
+
+  // ---- Window visibility ----
+
+  // Tray-only startup when the tray exists; otherwise show the Dashboard
+  // so the user always has a way back into the app.
+  if (_trayAvailable) {
+    await windowManager.hide();
+  } else {
+    await _showDashboard();
+  }
 
   // ---- Wake signal polling (second instance -> show dashboard) ----
 
@@ -140,6 +168,8 @@ void _hideDashboard() {
 }
 
 Future<void> _exitApp() async {
+  if (_exiting) return;
+  _exiting = true;
   _logger.log('trayforge shutting down');
 
   // Stop the wake-signal polling timer immediately so the event loop
@@ -163,7 +193,7 @@ Future<void> _exitApp() async {
   _dashboardViewModel.dispose();
   _settingsViewModel.dispose();
   _processManager.dispose();
-  await trayManager.destroy();
+  await DesktopTray.instance.destroy();
   await windowManager.destroy();
 
   // Release the single-instance lock last -- only after all cleanup is
@@ -178,10 +208,10 @@ Future<void> _exitApp() async {
 
 void _onTrayStateChanged() {
   // Fire-and-forget: update tray icon and menu when state changes.
-  trayManager
+  DesktopTray.instance
       .setIcon(_trayViewModel.iconPath)
       .catchError((e) => _logger.log('Tray setIcon failed: $e'));
-  trayManager
+  DesktopTray.instance
       .setContextMenu(_trayViewModel.buildMenu())
       .catchError((e) => _logger.log('Tray setContextMenu failed: $e'));
 }
@@ -194,16 +224,29 @@ void _onTrayStateChanged() {
 class _AppWindowListener extends WindowListener {
   @override
   void onWindowClose() {
-    _hideDashboard();
+    if (_trayAvailable) {
+      // Tray-only mode: closing hides to the tray.
+      _hideDashboard();
+    } else {
+      // No tray to restore the window from — closing must exit.
+      _exitApp();
+    }
   }
 }
 
-/// Handles tray events: menu clicks and double-click.
+/// Handles tray events: menu clicks and icon clicks.
 ///
-/// Menu item actions are handled by onClick closures set in
-/// [TrayViewModel.buildMenu]; this listener handles
-/// double-click detection and right-click context menu.
-class _AppTrayListener extends TrayListener {
+/// Menu item actions are routed by key to [TrayViewModel.handleMenuAction];
+/// this listener handles icon clicks and the right-click context menu.
+class _AppTrayListener extends DesktopTrayListener {
+  @override
+  void onTrayMenuItemClick(TrayMenuItem item) {
+    final key = item.key;
+    if (key != null) {
+      _trayViewModel.handleMenuAction(key);
+    }
+  }
+
   @override
   void onTrayIconMouseDown() {
     // Single-click toggles Dashboard visibility.
@@ -219,10 +262,9 @@ class _AppTrayListener extends TrayListener {
   @override
   void onTrayIconRightMouseDown() {
     // Show the native context menu on right-click.
-    // The tray_manager plugin fires this event but does NOT
+    // The desktop_tray plugin fires this event but does NOT
     // auto-pop the menu -- the app must call popUpContextMenu.
-    // ignore: deprecated_member_use
-    trayManager.popUpContextMenu(bringAppToFront: true);
+    DesktopTray.instance.popUpContextMenu();
   }
 }
 

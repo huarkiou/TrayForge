@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
-import 'package:tray_manager/tray_manager.dart';
+import 'package:desktop_tray/desktop_tray.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
@@ -63,50 +63,51 @@ class TrayViewModel extends ChangeNotifier {
   }
 
   /// Builds the tray context menu from the current process list.
-  Menu buildMenu() {
+  TrayMenu buildMenu() {
     final config = _configStore.load();
     final processes = config?.processes ?? <ProcessConfig>[];
 
-    final items = <MenuItem>[];
+    final items = <TrayMenuItem>[];
 
-    // Dynamic process items — onClick closure captures name directly,
-    // compile-time safe vs string-key dispatch.
+    // Dynamic process items — the key routes the click back here via
+    // [handleMenuAction]; desktop_tray has no per-item onClick closure.
     for (final proc in processes) {
       final name = proc.name;
       final state = _states[name] ?? ProcState.stopped;
       final isRunning = state.isActive;
       final label = isRunning ? '\u2713 $name' : '   $name';
-      items.add(
-        MenuItem(
-          key: 'proc:$name',
-          label: label,
-          onClick: (_) => _toggleProcess(name),
-        ),
-      );
+      items.add(TrayMenuItem(key: 'proc:$name', label: label));
     }
 
     if (items.isNotEmpty) {
-      items.add(MenuItem.separator());
+      items.add(TrayMenuItem.separator());
     }
 
     // Fixed items
-    items.add(
-      MenuItem(
-        key: 'reload',
-        label: 'Reload Settings',
-        onClick: (_) => _reloadConfig(),
-      ),
-    );
-    items.add(
-      MenuItem(
-        key: 'dashboard',
-        label: 'Dashboard',
-        onClick: (_) => onShowDashboard(),
-      ),
-    );
-    items.add(MenuItem(key: 'exit', label: 'Exit', onClick: (_) => onExit()));
+    items.add(TrayMenuItem(key: 'reload', label: 'Reload Settings'));
+    items.add(TrayMenuItem(key: 'dashboard', label: 'Dashboard'));
+    items.add(TrayMenuItem(key: 'exit', label: 'Exit'));
 
-    return Menu(items: items);
+    return TrayMenu(items: items);
+  }
+
+  /// Routes a tray menu click to the action behind its [key].
+  ///
+  /// The keys are the same ones [buildMenu] attaches: `proc:<name>` toggles
+  /// that process, `reload` / `dashboard` / `exit` map to the fixed items.
+  void handleMenuAction(String key) {
+    if (key.startsWith('proc:')) {
+      _toggleProcess(key.substring('proc:'.length));
+      return;
+    }
+    switch (key) {
+      case 'reload':
+        _reloadConfig();
+      case 'dashboard':
+        onShowDashboard();
+      case 'exit':
+        onExit();
+    }
   }
 
   /// Called when the process list changes (config reload).

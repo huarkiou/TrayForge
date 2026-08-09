@@ -58,8 +58,8 @@ void main() {
       mockRunner.nextHandle = MockProcessHandle(pid: 1000);
       final vm = createTrayVm();
 
-      final item = vm.buildMenu().getMenuItem('proc:test-svc')!;
-      item.onClick!(item);
+      final item = vm.buildMenu().findByKey('proc:test-svc')!;
+      vm.handleMenuAction(item.key!);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(manager.getState('test-svc'), ProcState.running);
@@ -73,8 +73,8 @@ void main() {
       expect(manager.getState('test-svc'), ProcState.running);
 
       final vm = createTrayVm();
-      final item = vm.buildMenu().getMenuItem('proc:test-svc')!;
-      item.onClick!(item);
+      final item = vm.buildMenu().findByKey('proc:test-svc')!;
+      vm.handleMenuAction(item.key!);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(manager.getState('test-svc'), ProcState.stopped);
