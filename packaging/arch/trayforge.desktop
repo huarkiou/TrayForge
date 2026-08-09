@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=TrayForge
+GenericName=Process manager
+Comment=Keep your processes running from the system tray
+Exec=trayforge
+Icon=trayforge
+Terminal=false
+Categories=Utility;System;Monitor;
+StartupNotify=false
