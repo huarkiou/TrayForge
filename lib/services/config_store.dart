@@ -143,8 +143,10 @@ class ConfigStore {
     final now = DateTime.now();
     return '${now.year}${_pad(now.month)}${_pad(now.day)}'
         '_${_pad(now.hour)}${_pad(now.minute)}${_pad(now.second)}'
-        '.${_pad(now.millisecond)}';
+        '.${_pad(now.millisecond)}.${_pad6(now.microsecond)}';
   }
 
   static String _pad(int n) => n.toString().padLeft(2, '0');
+
+  static String _pad6(int n) => n.toString().padLeft(6, '0');
 }
