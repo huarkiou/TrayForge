@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
-import 'package:trayforge/widgets/copy_snackbar.dart';
 import 'package:trayforge/widgets/status_dot.dart';
 import 'package:trayforge/widgets/toggle_button.dart';
+import 'package:trayforge/widgets/webui_copy_button.dart';
 
 /// A Material [Card] widget that displays a single process.
 ///
@@ -107,17 +106,7 @@ class ProcessCardActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (viewModel.webuiUrl != null) ...[
-          IconButton(
-            icon: const Icon(Icons.content_copy, size: 20),
-            tooltip: 'Copy URL to clipboard',
-            onPressed: () {
-              Clipboard.setData(
-                ClipboardData(text: viewModel.webuiUrl.toString()),
-              );
-              showCopySnackBar(context);
-            },
-            visualDensity: VisualDensity.compact,
-          ),
+          WebUiCopyButton(url: viewModel.webuiUrl!, compact: true),
           const SizedBox(width: 4),
         ],
         ToggleButton(

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
-import 'package:trayforge/widgets/copy_snackbar.dart';
 import 'package:trayforge/widgets/status_dot.dart';
 import 'package:trayforge/widgets/toggle_button.dart';
+import 'package:trayforge/widgets/webui_copy_button.dart';
 
 /// Full detail page for a single process.
 ///
@@ -130,18 +130,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
               builder: (context, _) {
                 final children = <Widget>[];
                 if (_vm.webuiUrl != null) {
-                  children.add(
-                    IconButton(
-                      icon: const Icon(Icons.content_copy),
-                      tooltip: 'Copy WebUI URL',
-                      onPressed: () {
-                        Clipboard.setData(
-                          ClipboardData(text: _vm.webuiUrl.toString()),
-                        );
-                        showCopySnackBar(context);
-                      },
-                    ),
-                  );
+                  children.add(WebUiCopyButton(url: _vm.webuiUrl!));
                 }
                 children.add(
                   IconButton(
